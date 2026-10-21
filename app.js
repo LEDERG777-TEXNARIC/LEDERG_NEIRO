@@ -1,50 +1,232 @@
-import{INTENTS,trainModel,predictIntent,getSeedExampleCount}from"./model.js";
-import{KNOWLEDGE_BASE,searchKnowledge}from"./knowledge.js";
-import{calculateExpression,convertUnit,detectToolRequest,getMoscowTime,getWeather,searchWikipedia}from"./tools.js";
-const $=s=>document.querySelector(s),byId=new Map(INTENTS.map(x=>[x.id,x])),keys={chats:"lederg-neiro-chats-v1",examples:"lederg-neiro-examples-v1"};
-const el={sidebar:$("#sidebar"),history:$("#history"),welcome:$("#welcome"),messages:$("#messages"),stage:$("#stage"),form:$("#chatform"),input:$("#prompt"),send:$("#send"),counter:$("#counter"),view:$("#viewtitle"),typing:$("#typing"),lab:$("#lab"),phrase:$("#phrase"),intent:$("#intent"),trainform:$("#trainform"),status:$("#trainstatus"),examples:$("#examples"),examplecount:$("#examplecount"),vocabside:$("#vocabside"),metricvocab:$("#metricvocab"),customcount:$("#customcount"),toast:$("#toast"),clock:$("#moscow-clock"),knowledgeCount:$("#knowledge-count")};
-function read(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}}function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{toast("Не удалось сохранить данные браузера")}}
-let custom=read(keys.examples,[]),chats=read(keys.chats,[]),active=null,msgs=[],net=null,timer;
-custom=Array.isArray(custom)?custom.filter(x=>x&&typeof x.text==="string"&&byId.has(x.intentId)):[];chats=Array.isArray(chats)?chats.filter(x=>x&&x.id&&Array.isArray(x.messages)):[];
-function toast(t){el.toast.textContent=t;el.toast.classList.add("show");clearTimeout(timer);timer=setTimeout(()=>el.toast.classList.remove("show"),2600)}function uid(){return crypto.randomUUID?.()||Date.now()+"-"+Math.random().toString(36).slice(2)}function time(t){return new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(t||Date.now()))}
-function showClock(){if(el.clock)el.clock.textContent="МСК "+time(Date.now())}
-function train(show=false){$("#send").disabled=true;$("#trainstatus").textContent=show?"Обучаю сеть…":"Примеры сохраняются только в этом браузере.";setTimeout(()=>{try{net=trainModel({epochs:80,extraExamples:custom});el.vocabside.textContent=net.vocab.size+" признаков";el.metricvocab.textContent=net.vocab.size;el.customcount.textContent=custom.length;if(el.knowledgeCount)el.knowledgeCount.textContent=KNOWLEDGE_BASE.length+" карточек";if(show){el.status.textContent="Готово: сеть переобучена на "+net.sampleCount+" примерах.";toast("LEDERG NEIRO переобучена")}renderExamples()}catch(e){el.status.textContent="Ошибка обучения. Обнови страницу.";console.error(e)}el.send.disabled=!el.input.value.trim()},20)}
-function renderHistory(){el.history.replaceChildren();if(!chats.length){const p=document.createElement("small");p.textContent="Здесь появятся твои диалоги";el.history.append(p);return}for(const c of chats){const b=document.createElement("button");b.textContent="▤　"+c.title;b.className=c.id===active?"active":"";b.onclick=()=>openChat(c.id);el.history.append(b)}}
-function persist(){if(!active)return;const c=chats.find(x=>x.id===active);if(c){c.messages=msgs;c.updatedAt=Date.now()}chats=chats.filter(x=>x.messages.length).sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,30);save(keys.chats,chats);renderHistory()}
-function render(){el.messages.replaceChildren();for(const m of msgs){const row=document.createElement("article");row.className="msg "+m.role;const av=document.createElement("div");av.className="avatar";av.textContent=m.role==="assistant"?"LN":"ТЫ";const main=document.createElement("div"),head=document.createElement("div");main.className="msgmain";head.className="msghead";const name=document.createElement("b");name.textContent=m.role==="assistant"?"LEDERG NEIRO":"ТЫ";const tm=document.createElement("small");tm.textContent=time(m.timestamp);head.append(name,tm);if(m.role==="assistant"&&m.intentId&&byId.has(m.intentId)){const tag=document.createElement("span");tag.className="classlabel";tag.textContent=byId.get(m.intentId).label+" · "+Math.round((m.confidence||0)*100)+"%";tag.title="Уверенность классификатора, не качество ответа";head.append(tag)}const text=document.createElement("div");text.className="msgtext";text.textContent=m.content;main.append(head,text);if(Array.isArray(m.sources)&&m.sources.length){const wrap=document.createElement("div");wrap.className="source-list";const title=document.createElement("small");title.className="source-heading";title.textContent="ИСТОЧНИКИ И ССЫЛКИ";wrap.append(title);for(const source of m.sources.slice(0,8)){try{const u=new URL(source.url);if(!["https:","http:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.textContent=source.title||u.hostname;a.title=u.href;wrap.append(a)}catch{}}if(wrap.childElementCount>1)main.append(wrap)}if(m.role==="assistant"&&m.source&&m.allowTeaching!==false){const b=document.createElement("button");b.className="teach";b.textContent="＋ Обучить на этой фразе";b.onclick=()=>openLab(m.source,m.intentId||"help");main.append(b)}row.append(av,main);el.messages.append(row)}requestAnimationFrame(()=>el.stage.scrollTop=el.stage.scrollHeight)}
-function openChat(id){const c=chats.find(x=>x.id===id);if(!c)return;active=id;msgs=c.messages.map(x=>({...x}));el.view.textContent=c.title;el.welcome.classList.add("hidden");el.messages.classList.remove("hidden");render();renderHistory();el.sidebar.classList.remove("open")}
-function newChat(){active=null;msgs=[];el.view.textContent="Новый диалог";el.welcome.classList.remove("hidden");el.messages.classList.add("hidden");el.input.value="";composer();renderHistory();el.sidebar.classList.remove("open");el.input.focus()}
-function fmtNumber(n){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:8}).format(n)}
-function webLinks(query){const q=encodeURIComponent(query);return[{title:"Веб-поиск · DuckDuckGo",url:"https://duckduckgo.com/?q="+q},{title:"Веб-поиск · Google",url:"https://www.google.com/search?q="+q},{title:"Поиск Wikipedia",url:"https://ru.wikipedia.org/w/index.php?search="+q}]}
-function currentMoscow(){const t=getMoscowTime();return"Сейчас в Москве "+t.time+" (МСК).\nДата: "+t.date+".\nЧасовой пояс: "+t.timeZone+" (сейчас UTC+3). Время берётся с системных часов устройства и переводится в зону Europe/Moscow."}
-async function runTool(r){
- if(r.type==="time")return{content:currentMoscow(),sources:[{title:"База часовых поясов IANA",url:"https://www.iana.org/time-zones"}],allowTeaching:false};
- if(r.type==="calculate"){try{return{content:r.expression+" = "+fmtNumber(calculateExpression(r.expression))+"\n\nВычислено локально безопасным арифметическим парсером.",allowTeaching:false}}catch(e){return{content:"Не удалось вычислить выражение: "+e.message+"\nПример: «посчитай (128 + 64) / 4».",allowTeaching:false}}}
- if(r.type==="convert"){try{const c=convertUnit(r.value,r.from,r.to);return{content:fmtNumber(r.value)+" "+r.from+" = "+fmtNumber(c.value)+" "+c.unit+"\n\nКонвертация рассчитана локально.",allowTeaching:false}}catch(e){return{content:"Не удалось конвертировать единицы: "+e.message,allowTeaching:false}}}
- if(r.type==="weather"){try{const w=await getWeather(r.query);return{content:"Погода сейчас: "+w.city+"\n"+w.condition+".\nТемпература: "+fmtNumber(w.temperature)+" °C; ощущается как "+fmtNumber(w.feelsLike)+" °C.\nВлажность: "+fmtNumber(w.humidity)+"%. Ветер: "+fmtNumber(w.wind)+" км/ч.\nВремя данных: "+w.time+" ("+w.timezone+").\n\nДанные получены в реальном времени у внешнего сервиса.",sources:[{title:"Open-Meteo — погода",url:w.source}],allowTeaching:false}}catch(e){return{content:"Не удалось получить погоду: "+e.message+"\nПроверь название города или попробуй позже.",sources:[{title:"Открыть Open-Meteo",url:"https://open-meteo.com/"}],allowTeaching:false}}}
- if(r.type==="search"){const q=r.query;try{let found=await searchWikipedia(q,{lang:"ru",limit:5});if(!found.length)found=await searchWikipedia(q,{lang:"en",limit:5});const sources=found.map(x=>({title:x.title+" · Wikipedia",url:x.url})).concat(webLinks(q));const body=found.length?"Нашла "+found.length+" результатов по запросу «"+q+"» в открытой энциклопедической базе.\n\n"+found.map((x,i)=>(i+1)+". "+x.title+"\n"+(x.snippet||"Открой источник, чтобы прочитать статью.")).join("\n\n")+"\n\nЭто актуальная выдача Wikipedia, а не полный индекс всего интернета. Для более широкого поиска открой поисковик по ссылке ниже.":"В Wikipedia не нашлось подходящих страниц по запросу «"+q+"». Можно открыть общий веб-поиск по ссылкам ниже.";return{content:body,sources,allowTeaching:false}}catch(e){return{content:"Не удалось получить результаты Wikipedia: "+e.message+"\nПопробуй внешний веб-поиск по ссылкам ниже.",sources:webLinks(q),allowTeaching:false}}}
- return null
+import { trainModel, predictIntent } from "./model.js";
+import { KNOWLEDGE_BASE, searchKnowledge } from "./knowledge.js";
+import { calculateExpression, convertUnit, detectToolRequest, getMoscowTime, getWeather, searchWikipedia } from "./tools.js";
+
+const $ = (selector) => document.querySelector(selector);
+const nodes = {
+  chat: $("#chat"), welcome: $("#welcome"), form: $("#chat-form"),
+  input: $("#message-input"), send: $("#send-button"), clock: $("#moscow-clock"),
+  counter: $("#counter"), typing: $("#typing"), reset: $("#new-chat"),
+  quick: document.querySelectorAll("[data-prompt]")
+};
+const STORAGE_KEY = "lederg-neiro-chat-v2";
+let messages = [];
+let requestCounter = 0;
+let pending = false;
+let trainedModel = null;
+let toastTimer = null;
+
+function escapeText(value) { return String(value ?? ""); }
+function formatNumber(value) { return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 8 }).format(value); }
+function formatTime(timestamp = Date.now()) {
+  return new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(timestamp));
 }
-function knowledgeReply(text){const item=searchKnowledge(text);if(!item)return null;return{content:item.answer+"\n\nРаздел базы знаний: "+item.category+".",sources:[item.source],knowledgeId:item.title,allowTeaching:false}}
-function modelReply(p,text){if(!p||!p.intentId)return{content:"Пока я не нашла достаточно надёжный ответ в базе знаний и не смогла уверенно определить тему. Попробуй переформулировать вопрос. Можно написать «поищи в интернете …», «который час по Москве», «погода в Берлине» или «посчитай 128 * 256».",confidence:p?.confidence||0,allowTeaching:false};const a={
-greeting:"Привет! Я LEDERG NEIRO — собственный экспериментальный ИИ-проект. У меня есть локальная база справочных знаний, московские часы, калькулятор, конвертация единиц, погода и поиск по открытым источникам. Задай вопрос или напиши «поищи в интернете …».",
-identity:"Я — LEDERG NEIRO, браузерный проект на JavaScript. MLP-классификатор выбирает тему, база знаний хранит справочные ответы, а отдельные инструменты обрабатывают время, вычисления, погоду и поиск. Это экспериментальная система, не большая генеративная LLM.",
-capabilities:"Сейчас доступны "+KNOWLEDGE_BASE.length+" справочных карточек, локальный классификатор, текущее время по Москве, арифметический калькулятор, конвертация единиц, погода через Open-Meteo, поиск Wikipedia и ссылки на общий веб-поиск. История и обучающие примеры остаются в localStorage этого браузера.",
-neural_network:"Сеть превращает текст в признаки слов и пар слов; скрытый слой tanh обрабатывает признаки, softmax выбирает класс, а backpropagation обновляет веса. Это MLP-классификатор, а не генеративная языковая модель. Для справок есть отдельная база знаний.",
-github_pages:"GitHub Pages отдаёт статические HTML, CSS и JavaScript-файлы. Код работает в браузере. Время и арифметика считаются локально; поиск и погода запрашивают публичные внешние сервисы. Pages не запускает backend или Python-процессы.",
-programming:"Запрос связан с программированием. В базе есть карточки по JavaScript, HTML, CSS, API, HTTP, CORS, DOM, Git, GitHub Pages, Python и безопасности. Я отвечаю на справочные темы, но пока не анализирую произвольные большие проекты как большая LLM. Уточни технологию или напиши «поищи в интернете …».",
-learning:"Есть два разных способа улучшения. Пользовательские примеры настраивают веса классификатора для распознавания намерений. Статьи в knowledge.js расширяют справочную базу и должны содержать категорию, заголовок, ключевые слова, ответ и ссылку на источник.",
-ideas:"Следующий этап — дополнять тематические разделы базы, проверять карточки тестовыми вопросами, добавить RSS-новости и поиск по документации, а позже — подключить более крупную локальную языковую модель, если позволит размер и производительность.",
-thanks:"Рад помочь! Если нужен более точный ответ, задай конкретный вопрос или воспользуйся поиском по источникам. Базу знаний можно расширять пакетами и покрывать тестами.",
-goodbye:"До встречи! Сайт работает на GitHub Pages. История и пользовательские примеры сохраняются только в локальном хранилище текущего браузера.",
-help:"Попробуй команды: «который час по Москве?», «погода в Берлине», «посчитай (128 + 64) / 4», «переведи 10 км в мили», «поищи в интернете квантовые компьютеры». Для справок спроси «что такое DNS», «как работает JavaScript» или «что такое нейросеть». Поиск и погода отправляют запросы выбранным публичным источникам."
-};return{content:a[p.intentId]||a.help,intentId:p.intentId,confidence:p.confidence}}
-async function getResponse(text){const tool=detectToolRequest(text);if(tool)return runTool(tool);const kb=knowledgeReply(text);if(kb)return kb;return modelReply(predictIntent(net,text),text)}
-async function send(raw){const text=String(raw||"").trim();if(!text||!net)return;if(!active){active=uid();chats.unshift({id:active,title:text.replace(/\s+/g," ").slice(0,32)+(text.length>32?"…":""),messages:[],updatedAt:Date.now()})}msgs.push({role:"user",content:text,timestamp:Date.now()});el.view.textContent=chats.find(c=>c.id===active)?.title||"Диалог";el.welcome.classList.add("hidden");el.messages.classList.remove("hidden");el.input.value="";composer();render();persist();el.typing.classList.remove("hidden");el.typing.querySelector("span").textContent="проверяю базу знаний и инструменты…";el.send.disabled=true;const current=++requestCounter;try{const r=await getResponse(text);if(current!==requestCounter)return;msgs.push({role:"assistant",content:r.content,timestamp:Date.now(),intentId:r.intentId||null,confidence:r.confidence,sources:r.sources||[],source:text,allowTeaching:r.allowTeaching!==false,knowledgeId:r.knowledgeId})}catch(e){if(current===requestCounter)msgs.push({role:"assistant",content:"Ошибка обработки: "+(e?.message||"неизвестная ошибка")+". Попробуй ещё раз.",timestamp:Date.now(),source:text,allowTeaching:false})}finally{if(current===requestCounter){el.typing.classList.add("hidden");render();persist();el.send.disabled=!el.input.value.trim();el.input.focus()}}}
-function composer(){el.counter.textContent=el.input.value.length+" / 1200";el.send.disabled=!el.input.value.trim();el.input.style.height="auto";el.input.style.height=Math.min(el.input.scrollHeight,150)+"px"}
-function openLab(phrase="",intentId="identity"){el.phrase.value=phrase;el.intent.value=byId.has(intentId)?intentId:"help";el.lab.showModal();renderExamples();requestAnimationFrame(()=>el.phrase.focus());el.sidebar.classList.remove("open")}
-function renderExamples(){el.examples.replaceChildren();el.examplecount.textContent=custom.length;el.customcount.textContent=custom.length;if(!custom.length){const p=document.createElement("p");p.textContent="Ты пока не добавлял свои фразы.";el.examples.append(p);return}custom.forEach((x,i)=>{const row=document.createElement("div");row.className="example";const span=document.createElement("span"),del=document.createElement("button");span.textContent=x.text;const small=document.createElement("small");small.textContent=byId.get(x.intentId)?.label||"Класс";span.append(small);del.textContent="×";del.title="Удалить пример";del.onclick=()=>{custom.splice(i,1);save(keys.examples,custom);train(true)};row.append(span,del);el.examples.append(row)})}
-for(const x of INTENTS){const o=document.createElement("option");o.value=x.id;o.textContent=x.label;el.intent.append(o)}
-$("#newchat").onclick=newChat;$("#clearhistory").onclick=()=>{if(!chats.length)return toast("История уже пуста");if(confirm("Удалить все сохранённые диалоги?")){chats=[];save(keys.chats,chats);newChat()}};$("#openlab").onclick=$("#openlab2").onclick=()=>openLab();$("#closelab").onclick=()=>el.lab.close();el.lab.addEventListener("click",e=>{if(e.target===el.lab)el.lab.close()});el.form.onsubmit=e=>{e.preventDefault();send(el.input.value)};el.input.oninput=composer;el.input.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();el.form.requestSubmit()}};document.querySelectorAll("[data-prompt]").forEach(b=>b.onclick=()=>{el.input.value=b.dataset.prompt;composer();el.form.requestSubmit()});$("#menubtn").onclick=()=>el.sidebar.classList.toggle("open");document.addEventListener("click",e=>{if(innerWidth<=760&&el.sidebar.classList.contains("open")&&!el.sidebar.contains(e.target)&&!$("#menubtn").contains(e.target))el.sidebar.classList.remove("open")});document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();newChat()}});
-el.trainform.onsubmit=e=>{e.preventDefault();const text=el.phrase.value.trim();if(!text)return;custom.push({text,intentId:el.intent.value});custom=custom.slice(-100);save(keys.examples,custom);train(true)};$("#resetexamples").onclick=()=>{if(!custom.length)return toast("Собственных примеров пока нет");if(confirm("Удалить все добавленные примеры?")){custom=[];save(keys.examples,custom);train(true)}};
-renderHistory();composer();train();showClock();setInterval(showClock,1000);
+function updateClock() {
+  if (!nodes.clock) return;
+  const now = new Date();
+  const date = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", weekday: "short", day: "numeric", month: "short" }).format(now);
+  nodes.clock.textContent = "МСК " + formatTime(now) + " · " + date;
+  nodes.clock.dateTime = now.toISOString();
+}
+function setPending(value) {
+  pending = Boolean(value);
+  nodes.send.disabled = pending || !nodes.input.value.trim();
+  nodes.typing.hidden = !pending;
+  if (pending) nodes.typing.textContent = "LEDERG NEIRO · анализирую запрос и проверяю источники…";
+}
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-80))); } catch { /* Storage may be unavailable in private mode. */ }
+}
+function loadHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) messages = saved.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string").slice(-80);
+  } catch { messages = []; }
+}
+function addSources(parent, sources) {
+  if (!Array.isArray(sources) || !sources.length) return;
+  const wrap = document.createElement("div"); wrap.className = "sources";
+  const heading = document.createElement("small"); heading.textContent = "ИСТОЧНИКИ"; wrap.append(heading);
+  for (const source of sources.slice(0, 8)) {
+    try {
+      const url = new URL(source.url);
+      if (!["http:", "https:"].includes(url.protocol)) continue;
+      const link = document.createElement("a");
+      link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+      link.textContent = source.title || url.hostname; wrap.append(link);
+    } catch { /* Ignore malformed URLs from external search results. */ }
+  }
+  if (wrap.childElementCount > 1) parent.append(wrap);
+}
+function renderMessage(message) {
+  const row = document.createElement("article"); row.className = "message " + message.role;
+  const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = message.role === "assistant" ? "ϟ" : "ТЫ";
+  const content = document.createElement("div"); content.className = "message-content";
+  const head = document.createElement("div"); head.className = "message-head";
+  const name = document.createElement("b"); name.textContent = message.role === "assistant" ? "LEDERG NEIRO" : "ТЫ";
+  const time = document.createElement("time"); time.textContent = formatTime(message.timestamp); time.dateTime = new Date(message.timestamp || Date.now()).toISOString();
+  head.append(name, time); content.append(head);
+  const body = document.createElement("div"); body.className = "message-text"; body.textContent = escapeText(message.content); content.append(body);
+  addSources(content, message.sources);
+  row.append(avatar, content); nodes.chat.append(row);
+}
+function renderAll() {
+  nodes.chat.replaceChildren();
+  nodes.welcome.hidden = messages.length > 0;
+  for (const message of messages) renderMessage(message);
+  nodes.chat.scrollTop = nodes.chat.scrollHeight;
+}
+function updateComposer() {
+  nodes.counter.textContent = nodes.input.value.length + " / 2000";
+  nodes.input.style.height = "auto";
+  nodes.input.style.height = Math.min(nodes.input.scrollHeight, 160) + "px";
+  nodes.send.disabled = pending || !nodes.input.value.trim();
+}
+function stableVariant(query) {
+  let hash = 0;
+  for (const char of query.toLocaleLowerCase("ru-RU")) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 3;
+}
+function knowledgeAnswer(query) {
+  const item = searchKnowledge(query);
+  if (!item) return null;
+  const openings = ["", "Коротко: ", "Главное: "];
+  return {
+    content: openings[stableVariant(query)] + item.answer,
+    sources: [item.source],
+    mode: "knowledge"
+  };
+}
+function webSearchLinks(query) {
+  const encoded = encodeURIComponent(query);
+  return [
+    { title: "DuckDuckGo — поиск в интернете", url: "https://duckduckgo.com/?q=" + encoded },
+    { title: "Google — поиск в интернете", url: "https://www.google.com/search?q=" + encoded },
+    { title: "Wikipedia — поиск", url: "https://ru.wikipedia.org/w/index.php?search=" + encoded }
+  ];
+}
+async function searchWeb(query) {
+  const q = String(query || "").trim().slice(0, 180);
+  if (q.length < 2) return { content: "Уточни запрос для поиска.", sources: [] };
+  try {
+    let results = await searchWikipedia(q, { lang: "ru", limit: 5 });
+    if (!results.length) results = await searchWikipedia(q, { lang: "en", limit: 5 });
+    const sources = results.map((item) => ({ title: item.title + " · Wikipedia", url: item.url })).concat(webSearchLinks(q));
+    if (!results.length) return { content: "В Wikipedia не нашлось подходящих страниц по запросу «" + q + "». Ниже есть ссылки на поиск в интернете. Я не выдумываю результаты, которых не получила.", sources };
+    const intro = "Нашла " + results.length + " результатов по запросу «" + q + "» в живой выдаче Wikipedia. Это не полный индекс всего интернета; для свежих новостей и более широкого поиска открой поисковик по ссылке ниже.";
+    return { content: intro + "\n\n" + results.map((item, index) => (index + 1) + ". " + item.title + "\n" + (item.snippet || "Открой статью для подробностей.")).join("\n\n"), sources };
+  } catch (error) {
+    return { content: "Не удалось прочитать живую выдачу Wikipedia: " + (error?.message || "сервис недоступен") + ". Ниже доступны прямые ссылки на веб-поиск.", sources: webSearchLinks(q) };
+  }
+}
+function localTimeAnswer() {
+  const result = getMoscowTime();
+  return {
+    content: "Сейчас в Москве " + result.time + " (МСК).\nДата: " + result.date + ".\nЧасовой пояс: Europe/Moscow, UTC+3.\n\nВремя рассчитано на основе системных часов устройства с преобразованием в московский часовой пояс.",
+    sources: [{ title: "IANA — база часовых поясов", url: "https://www.iana.org/time-zones" }]
+  };
+}
+async function runTool(tool) {
+  switch (tool.type) {
+    case "time": return localTimeAnswer();
+    case "calculate":
+      try { return { content: tool.expression + " = " + formatNumber(calculateExpression(tool.expression)) + "\n\nВычислено локально безопасным калькулятором." }; }
+      catch (error) { return { content: "Не получилось вычислить выражение: " + error.message + "\nПример запроса: «посчитай (128 + 64) / 4»." }; }
+    case "convert":
+      try {
+        const result = convertUnit(tool.value, tool.from, tool.to);
+        return { content: formatNumber(tool.value) + " " + tool.from + " = " + formatNumber(result.value) + " " + result.unit + "\n\nКонвертация выполнена локально." };
+      } catch (error) { return { content: "Не получилось конвертировать единицы: " + error.message }; }
+    case "weather":
+      try {
+        const w = await getWeather(tool.query);
+        return {
+          content: "Погода сейчас: " + w.city + "\n" + w.condition + ".\nТемпература: " + formatNumber(w.temperature) + " °C; ощущается как " + formatNumber(w.feelsLike) + " °C.\nВлажность: " + formatNumber(w.humidity) + "%. Ветер: " + formatNumber(w.wind) + " км/ч.\nВремя данных: " + w.time + " (" + w.timezone + ").",
+          sources: [{ title: "Open-Meteo — источник погоды", url: w.source }]
+        };
+      } catch (error) {
+        return { content: "Не удалось получить погоду: " + error.message + "\nПроверь написание города или попробуй чуть позже.", sources: [{ title: "Open-Meteo", url: "https://open-meteo.com/" }] };
+      }
+    case "search": return searchWeb(tool.query);
+    default: return null;
+  }
+}
+function directWebIntent(text) {
+  if (detectToolRequest(text)) return null;
+  const t = text.toLocaleLowerCase("ru-RU");
+  const fresh = /(?:сегодня|сейчас|последн(?:ие|их|яя)|свеж(?:ие|ая)|новост(?:и|ей)|актуальн(?:ая|ые)|что произошло|кто сейчас|последние события)/iu.test(t);
+  const asksForSearch = /(?:найди|поищи|погугли|ищи в интернете|сделай поиск|найди источники|ссылки на источники)/iu.test(t);
+  if (fresh || asksForSearch) return { type: "search", query: text };
+  return null;
+}
+function createReasonedAnswer(query, result) {
+  if (result) return result;
+  const predicted = predictIntent(trainedModel, query);
+  if (!predicted.intentId || predicted.confidence < 0.32) {
+    return {
+      content: "Я пока не нашла достаточно надёжной информации, чтобы ответить без догадок.\n\nМогу поискать в интернете: напиши «поищи в интернете …» или «найди последние новости о …». Также попробуй задать вопрос другими словами.",
+      sources: webSearchLinks(query)
+    };
+  }
+  const replies = {
+    greeting: "Привет! Я LEDERG NEIRO. Я ищу ответы в базе знаний и открытых источниках, умею показывать время по Москве, считать и конвертировать единицы. Для интернета напиши «поищи в интернете …».",
+    identity: "Я — LEDERG NEIRO, экспериментальная браузерная ИИ-система. Самописная MLP-сеть выбирает тему сообщения, справочные ответы ищутся в базе знаний, а инструменты получают время, считают выражения, конвертируют величины, ищут в Wikipedia и получают погоду. Я ещё не являюсь полноценной генеративной LLM.",
+    capabilities: "Я могу искать по встроенной справочной базе, выполнять локальные расчёты, конвертировать единицы, показывать время по Москве, получать погоду и выполнять поиск в Wikipedia с источниками. Общий веб-поиск доступен прямыми ссылками; я не утверждаю, что прочитала страницу, пока не получила её содержимое.",
+    neural_network: "Нейросеть — модель, которая настраивает параметры на примерах. В этой версии сеть использует текстовые признаки, скрытый слой tanh и softmax для выбора категории. Затем система ищет справочный ответ или использует отдельный инструмент. Это классификатор, а не языковая модель, свободно генерирующая текст.",
+    github_pages: "GitHub Pages публикует статические HTML, CSS и JavaScript-файлы. Поэтому интерфейс и часть вычислений работают прямо в браузере, а не на Python-сервере. Погода и поиск обращаются к публичным сервисам. Секретные API-ключи в открытый код добавлять нельзя.",
+    programming: "Я могу помочь со справочными вопросами по программированию и объяснить базовые технологии, но пока не умею надёжно анализировать произвольный большой код как LLM. Уточни язык или напиши «поищи в интернете …», чтобы получить ссылки на документацию.",
+    learning: "Моя нейронная часть сейчас классифицирует намерения, а не обучается на каждом сообщении. База знаний расширяется отдельными карточками с ответом и источником. Следующий большой шаг к LLM — использовать или обучать языковую модель с весами, а не наращивать только шаблоны.",
+    ideas: "Чтобы развить LEDERG NEIRO, полезнее одновременно расширять проверяемую базу и тесты, чем просто добавлять случайные ответы. Для настоящей генерации свободного текста понадобится отдельная языковая модель; она заметно тяжелее текущего классификатора.",
+    thanks: "Всегда пожалуйста! Если вопрос требует свежих сведений, попроси меня поискать в интернете — я покажу найденные результаты и ссылки.",
+    goodbye: "До встречи! Чат сохранит историю в этом браузере. При очистке данных сайта история может быть удалена.",
+    help: "Примеры запросов: «который час по Москве?», «погода в Берлине», «посчитай (128 + 64) / 4», «переведи 10 км в мили», «что такое DNS?», «поищи в интернете квантовые компьютеры»."
+  };
+  return { content: replies[predicted.intentId] || replies.help };
+}
+async function getAnswer(query) {
+  const tool = detectToolRequest(query) || directWebIntent(query);
+  if (tool) return runTool(tool);
+  const knowledge = knowledgeAnswer(query);
+  if (knowledge) return knowledge;
+  return createReasonedAnswer(query, null);
+}
+async function sendMessage(raw) {
+  const query = String(raw || "").trim();
+  if (!query || pending) return;
+  nodes.input.value = ""; updateComposer();
+  nodes.welcome.hidden = true;
+  messages.push({ role: "user", content: query, timestamp: Date.now() });
+  messages = messages.slice(-80); renderAll(); saveHistory();
+  const currentRequest = ++requestCounter;
+  setPending(true);
+  try {
+    const answer = await getAnswer(query);
+    if (currentRequest !== requestCounter) return;
+    messages.push({ role: "assistant", content: answer?.content || "Не получилось сформировать ответ.", timestamp: Date.now(), sources: answer?.sources || [] });
+  } catch (error) {
+    if (currentRequest === requestCounter) {
+      messages.push({ role: "assistant", content: "Произошла ошибка при обработке запроса: " + (error?.message || "неизвестная ошибка") + ". Попробуй ещё раз.", timestamp: Date.now() });
+    }
+  } finally {
+    if (currentRequest === requestCounter) {
+      setPending(false); renderAll(); saveHistory(); updateComposer(); nodes.input.focus();
+    }
+  }
+}
+function newConversation() {
+  ++requestCounter;
+  pending = false; messages = [];
+  nodes.input.value = ""; setPending(false); updateComposer(); renderAll();
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  nodes.input.focus();
+}
+nodes.form.addEventListener("submit", (event) => { event.preventDefault(); void sendMessage(nodes.input.value); });
+nodes.input.addEventListener("input", updateComposer);
+nodes.input.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); nodes.form.requestSubmit(); }
+});
+nodes.reset.addEventListener("click", newConversation);
+nodes.quick.forEach((button) => button.addEventListener("click", () => { nodes.input.value = button.dataset.prompt || ""; updateComposer(); nodes.form.requestSubmit(); }));
+loadHistory();
+try { trainedModel = trainModel({ epochs: 60, seed: 2026 }); } catch { trainedModel = null; }
+renderAll(); updateComposer(); updateClock(); setInterval(updateClock, 1000);
