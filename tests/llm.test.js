@@ -67,7 +67,7 @@ test("worker points ONNX Runtime WASM assets at the site's self-hosted Pages dir
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   assert.match(worker, /env\.backends\.onnx\.wasm\.wasmPaths\s*=/);
   assert.match(worker, /vendor\/onnxruntime/);
-  assert.match(workflow, /onnxruntime-web@1\.22\.0-dev\.20250409-89f8206ba4/);
+  assert.match(workflow, /VERSION="1\.22\.0-dev\.20250409-89f8206ba4"/);
   assert.match(workflow, /npm pack/);
   assert.match(workflow, /ort-wasm-simd-threaded\.jsep\.wasm/);
 });
