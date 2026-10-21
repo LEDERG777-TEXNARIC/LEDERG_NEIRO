@@ -32,7 +32,7 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
         progress(id, device === "webgpu"
           ? "Подготавливаю WebGPU в фоновом потоке…"
           : "WebGPU недоступен или не запустился. Загружаю CPU-вариант — он медленнее…");
-        const dtype = device === "webgpu" ? "q4f16" : "q4";
+        const dtype = "q4";
         const loaded = await pipeline("text-generation", requestedModelId, {
           device,
           dtype,
