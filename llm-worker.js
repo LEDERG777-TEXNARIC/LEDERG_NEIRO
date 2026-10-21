@@ -17,9 +17,9 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
     if (env) {
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
-      // GitHub Pages serves ONNX Runtime assets from our own site to avoid
-      // relying on the Transformers.js package CDN for large WASM files.
-      env.backends.onnx.wasm.wasmPaths = new URL("./vendor/onnxruntime/", self.location.href).href;
+      // Pin the ONNX Runtime build required by Transformers.js 3.8.1.
+      // Use the matching CDN directory rather than a Pages-relative dynamic import.
+      env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0-dev.20250409-89f8206ba4/dist/";
       // Static Pages does not set COOP/COEP headers, so force the compatible
       // single-threaded WASM runtime instead of requiring SharedArrayBuffer.
       env.backends.onnx.wasm.numThreads = 1;
