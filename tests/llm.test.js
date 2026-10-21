@@ -71,9 +71,20 @@ test("worker pins the matching ONNX Runtime WASM CDN build", async () => {
   assert.doesNotMatch(worker, /vendor\/onnxruntime/);
 });
 
-test("browser inference prefers WASM instead of an unverified WebGPU backend", async () => {\n  const { readFile } = await import("node:fs/promises");\n  const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");\n  assert.match(adapter, /const devices = \["wasm"\]/);\n  assert.doesNotMatch(adapter, /const devices = hasGpu/);\n});\n\ntest("worker uses WASM for stable inference and cache-busts updated worker code", async () => {
+test("browser inference prefers WASM instead of an unverified WebGPU backend", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");
+  assert.match(adapter, /const devices = \["wasm"\]/);
+  assert.doesNotMatch(adapter, /const devices = hasGpu/);
+});
+
+test("worker uses WASM for stable inference and cache-busts updated worker code", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
+  const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");
   assert.match(worker, /const dtype = "q4"/);
+  assert.match(worker, /const devices = \["wasm"\]/);
+  assert.doesNotMatch(worker, /const devices = hasGpu/);
   assert.doesNotMatch(worker, /q4f16/);
+  assert.match(adapter, /llm-worker\.js\?build=/);
 });
