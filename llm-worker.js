@@ -24,14 +24,13 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
       // single-threaded WASM runtime instead of requiring SharedArrayBuffer.
       env.backends.onnx.wasm.numThreads = 1;
     }
-    const hasGpu = typeof navigator !== "undefined" && Boolean(navigator.gpu);
-    const devices = hasGpu ? ["webgpu", "wasm"] : ["wasm"];
+    const devices = ["wasm"];
     let lastError;
     for (const device of devices) {
       try {
         progress(id, device === "webgpu"
           ? "Подготавливаю WebGPU в фоновом потоке…"
-          : "WebGPU недоступен или не запустился. Загружаю CPU-вариант — он медленнее…");
+          : "Использую стабильный CPU/WASM-режим для корректной генерации…");
         const dtype = "q4";
         const loaded = await pipeline("text-generation", requestedModelId, {
           device,
