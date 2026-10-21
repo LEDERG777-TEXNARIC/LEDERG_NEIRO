@@ -148,7 +148,7 @@ async function searchWeb(query) {
     const sources = results.map((item) => ({ title: item.title + " · Wikipedia", url: item.url })).concat(webSearchLinks(q));
     if (!results.length) return { content: "В Wikipedia не нашлось подходящих страниц по запросу «" + q + "». Ниже есть ссылки на поиск в интернете. Я не выдумываю результаты, которых не получила.", sources };
     const intro = "Нашла " + results.length + " результатов по запросу «" + q + "» в живой выдаче Wikipedia. Это не полный индекс всего интернета; для свежих новостей и более широкого поиска открой поисковик по ссылке ниже.";
-    return { content: intro + "\n\n" + results.map((item, index) => (index + 1) + ". " + item.title + "\n" + (item.snippet || "Открой статью для подробностей.")).join("\n\n"), sources };
+    return { content: intro + "\n\n" + results.map((item, index) => (index + 1) + ". " + item.title + "\n" + (item.snippet || "Открой статью для подробностей.")).join("\n\n"), sources, mode: "web" };
   } catch (error) {
     return { content: "Не удалось прочитать живую выдачу Wikipedia: " + (error?.message || "сервис недоступен") + ". Ниже доступны прямые ссылки на веб-поиск.", sources: webSearchLinks(q) };
   }
@@ -157,26 +157,28 @@ function localTimeAnswer() {
   const result = getMoscowTime();
   return {
     content: "Сейчас в Москве " + result.time + " (МСК).\nДата: " + result.date + ".\nЧасовой пояс: Europe/Moscow, UTC+3.\n\nВремя рассчитано на основе системных часов устройства с преобразованием в московский часовой пояс.",
-    sources: [{ title: "IANA — база часовых поясов", url: "https://www.iana.org/time-zones" }]
+    sources: [{ title: "IANA — база часовых поясов", url: "https://www.iana.org/time-zones" }],
+    mode: "time"
   };
 }
 async function runTool(tool) {
   switch (tool.type) {
     case "time": return localTimeAnswer();
     case "calculate":
-      try { return { content: tool.expression + " = " + formatNumber(calculateExpression(tool.expression)) + "\n\nВычислено локально безопасным калькулятором." }; }
+      try { return { content: tool.expression + " = " + formatNumber(calculateExpression(tool.expression)) + "\n\nВычислено локально безопасным калькулятором.", mode: "calculation" }; }
       catch (error) { return { content: "Не получилось вычислить выражение: " + error.message + "\nПример запроса: «посчитай (128 + 64) / 4»." }; }
     case "convert":
       try {
         const result = convertUnit(tool.value, tool.from, tool.to);
-        return { content: formatNumber(tool.value) + " " + tool.from + " = " + formatNumber(result.value) + " " + result.unit + "\n\nКонвертация выполнена локально." };
+        return { content: formatNumber(tool.value) + " " + tool.from + " = " + formatNumber(result.value) + " " + result.unit + "\n\nКонвертация выполнена локально.", mode: "conversion" };
       } catch (error) { return { content: "Не получилось конвертировать единицы: " + error.message }; }
     case "weather":
       try {
         const w = await getWeather(tool.query);
         return {
           content: "Погода сейчас: " + w.city + "\n" + w.condition + ".\nТемпература: " + formatNumber(w.temperature) + " °C; ощущается как " + formatNumber(w.feelsLike) + " °C.\nВлажность: " + formatNumber(w.humidity) + "%. Ветер: " + formatNumber(w.wind) + " км/ч.\nВремя данных: " + w.time + " (" + w.timezone + ").",
-          sources: [{ title: "Open-Meteo — источник погоды", url: w.source }]
+          sources: [{ title: "Open-Meteo — источник погоды", url: w.source }],
+          mode: "weather"
         };
       } catch (error) {
         return { content: "Не удалось получить погоду: " + error.message + "\nПроверь написание города или попробуй чуть позже.", sources: [{ title: "Open-Meteo", url: "https://open-meteo.com/" }] };
@@ -234,7 +236,15 @@ async function sendMessage(raw) {
   const currentRequest = ++requestCounter;
   setPending(true);
   try {
-    const answer = applyDetailedMode(query, await getAnswer(query));
+    let timeoutId;
+    let answer;
+    try {
+      answer = await Promise.race([
+        getAnswer(query),
+        new Promise((resolve) => { timeoutId = setTimeout(() => resolve({ content: "Запрос занял слишком много времени. Попробуй ещё раз или открой прямой поиск по ссылкам ниже.", sources: webSearchLinks(query) }), 25000); })
+      ]);
+    } finally { clearTimeout(timeoutId); }
+    answer = applyDetailedMode(query, answer);
     if (currentRequest !== requestCounter) return;
     messages.push({ role: "assistant", content: answer?.content || "Не получилось сформировать ответ.", timestamp: Date.now(), sources: answer?.sources || [] });
   } catch (error) {
