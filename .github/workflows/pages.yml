@@ -35,7 +35,21 @@ jobs:
           VERSION="1.22.0-dev.20250409-89f8206ba4"
           mkdir -p /tmp/ort-package vendor/onnxruntime
           TARBALL="$(npm pack --silent "onnxruntime-web@${VERSION}" --pack-destination /tmp/ort-package)"
-          tar -tzf "/tmp/ort-package/${TARBALL}" | grep -E '^package/dist/ort-wasm.*\\.(wasm|mjs)$' | while IFS= read -r entry; do
+          tar -tzf "/tmp/ort-package/${TARBALL}" | grep -E '^package/dist/ort-wasm.*\.(wasm|mjs)
+            name="${entry##*/}"
+            tar -xOf "/tmp/ort-package/${TARBALL}" "${entry}" > "vendor/onnxruntime/${name}"
+          done
+          test -s vendor/onnxruntime/ort-wasm-simd-threaded.jsep.wasm
+          test -s vendor/onnxruntime/ort-wasm-simd-threaded.jsep.mjs
+          test -s vendor/onnxruntime/ort-wasm-simd-threaded.wasm
+          echo "Compatibility ONNX Runtime assets are ready:"
+          ls -lh vendor/onnxruntime/
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
+ | while IFS= read -r entry; do
             name="${entry##*/}"
             tar -xOf "/tmp/ort-package/${TARBALL}" "${entry}" > "vendor/onnxruntime/${name}"
           done
