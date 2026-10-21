@@ -175,7 +175,7 @@ export function createLanguageModelClient({ pipelineFactory = null, workerFactor
           onProgress(device === "webgpu" ? "Готовлю локальный запуск на видеокарте…" : "Перехожу на совместимый режим CPU…");
           generator = await factory("text-generation", modelId, {
             device,
-            dtype: device === "webgpu" ? "q4f16" : "q4",
+            dtype: "q4",
             progress_callback: (event) => onProgress(progressText(event))
           });
           onProgress("Модель загружена. Генерирую ответ…");
