@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SYSTEM_PROMPT, MODEL_ID, MODEL_SIZE_HINT, buildChatMessages, extractAssistantText, createLanguageModelClient } from "../llm.js";
 
-test("model size hint matches the q4 weight variant", () => {\n  assert.match(MODEL_SIZE_HINT, /800/);\n});\n\ntest("system prompt sets identity, accuracy, web honesty and privacy boundaries", () => {
+test("model size hint matches the q4 weight variant", () => {
+  assert.match(MODEL_SIZE_HINT, /800/);
+});
+
+test("system prompt sets identity, accuracy, web honesty and privacy boundaries", () => {
   assert.match(SYSTEM_PROMPT, /LEDERG NEIRO/);
   assert.match(SYSTEM_PROMPT, /Не выдумывай факты/);
   assert.match(SYSTEM_PROMPT, /не показывай скрытые внутренние рассуждения/i);
