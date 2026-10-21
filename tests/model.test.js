@@ -1,0 +1,8 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {INTENTS,tokenize,trainModel,predictIntent} from "../model.js";
+test("Russian tokenizer normalizes ё and punctuation",()=>assert.deepEqual(tokenize("Ёжик, НЕЙРОСЕТЬ! 123"),["ежик","нейросеть","123"]));
+test("greeting gets classified",()=>{const m=trainModel({epochs:45,seed:41});const p=predictIntent(m,"привет, привет, как дела?");assert.equal(p.intentId,"greeting");assert.ok(Number.isFinite(p.confidence)&&p.confidence>.2)});
+test("custom phrase is included in vocabulary and training",()=>{const m=trainModel({epochs:60,seed:29,extraExamples:[{text:"кварцовый маяк фиолетовый",intentId:"programming"}]});assert.ok(m.vocab.has("кварцовый"));assert.equal(predictIntent(m,"кварцовый маяк фиолетовый").intentId,"programming")});
+test("empty text safely returns no intent",()=>{const p=predictIntent(trainModel({epochs:25,seed:5}),"");assert.equal(p.intentId,null);assert.equal(p.confidence,0);assert.ok(INTENTS.length>=8)});
+test("main supported topics are recognized",()=>{const m=trainModel({epochs:60,seed:2026});for(const[q,id]of [["Кто ты?","identity"],["Что ты умеешь?","capabilities"],["Что такое нейросеть?","neural_network"],["Как опубликовать сайт на GitHub Pages?","github_pages"],["Помоги написать JavaScript код","programming"],["Как обучить модель?","learning"],["Придумай идею приложения","ideas"],["Спасибо за помощь","thanks"],["Пока, до встречи","goodbye"],["Как пользоваться сайтом?","help"]])assert.equal(predictIntent(m,q).intentId,id,q)});
