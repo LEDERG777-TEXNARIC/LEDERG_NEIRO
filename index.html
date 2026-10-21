@@ -14,23 +14,23 @@
 <div class="app">
   <header class="topbar">
     <a class="brand" href="./" aria-label="LEDERG NEIRO — главная"><span class="bolt">ϟ</span><span><b>LEDERG <em>NEIRO</em></b><small>ТВОЙ ИНТЕЛЛЕКТ</small></span></a>
-    <div class="top-status"><span class="live"><i></i> NEIRO ONLINE</span><time id="moscow-clock" title="Московское время" datetime="">МСК --:--</time></div>
+    <div class="top-status"><span id="model-status" class="model-status" title="Открытая языковая модель выполняется в этом браузере">QWEN 0.5B · LOCAL</span><span class="live"><i></i> BROWSER AI</span><time id="moscow-clock" title="Московское время" datetime="">МСК --:--</time></div>
     <button id="new-chat" class="new-chat" type="button" title="Начать новый диалог" aria-label="Начать новый диалог">＋</button>
   </header>
   <main class="main">
     <section id="chat" class="chat" role="log" aria-live="polite" aria-relevant="additions text"></section>
     <section id="welcome" class="welcome">
       <div class="hero">ϟ</div>
-      <p class="eyebrow">LEDERG NEIRO · ВАШ ИИ-ПОМОЩНИК</p>
+      <p class="eyebrow">LEDERG NEIRO · LOCAL LANGUAGE MODEL</p>
       <h1>Чем займёмся<br><em>сегодня?</em></h1>
-      <p class="subtitle">Задай вопрос обычным языком. Я проверю базу знаний, использую доступные инструменты и покажу источники, когда они есть.</p>
+      <p class="subtitle">Свободный диалог на базе Qwen 0.5B. Ответы генерируются прямо на твоём устройстве; для фактов использую базу знаний и доступные источники.</p>
       <div class="quick-prompts">
         <button type="button" data-prompt="Что такое нейросеть?"><span>◈</span><b>Объясни тему</b><small>Ответы из базы знаний</small></button>
         <button type="button" data-prompt="Поищи в интернете квантовые компьютеры"><span>⌕</span><b>Найди в интернете</b><small>Поиск и ссылки на источники</small></button>
         <button type="button" data-prompt="Который час по Москве?"><span>◷</span><b>Время по Москве</b><small>Дата и часы МСК</small></button>
         <button type="button" data-prompt="Погода в Берлине"><span>☼</span><b>Узнай погоду</b><small>Актуальные данные по городу</small></button>
       </div>
-      <p class="disclaimer">Это ранняя экспериментальная система, а не большая генеративная LLM. Проверяй важные факты по источникам.</p>
+      <p class="disclaimer">Первый запуск скачивает модель (~500 МБ) с Hugging Face. Дальше браузер использует кэш, когда он доступен. API-ключ не нужен.</p>
     </section>
     <div id="typing" class="typing" hidden role="status">LEDERG NEIRO · анализирую запрос и проверяю источники…</div>
   </main>
