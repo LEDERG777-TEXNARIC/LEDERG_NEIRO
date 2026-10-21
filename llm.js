@@ -1,6 +1,6 @@
 export const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
 export const MODEL_REPOSITORY = "https://huggingface.co/" + MODEL_ID;
-export const MODEL_SIZE_HINT = "около 500 МБ при первой загрузке";
+export const MODEL_SIZE_HINT = "около 800 МБ при первой загрузке";
 
 export const SYSTEM_PROMPT = String.raw`Ты — LEDERG NEIRO, интеллектуальный ассистент проекта LEDERG. Отвечай на русском языке, если пользователь сам не перешёл на другой язык.
 
