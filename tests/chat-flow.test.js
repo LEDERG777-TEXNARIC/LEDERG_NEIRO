@@ -21,3 +21,12 @@ test("chat supports time, knowledge retrieval, web search and weather", () => {
 });
 
 test("chat exposes only a user-facing optional explanation control",()=>{assert.match(page,/id="detail-mode"/);assert.doesNotMatch(page,/id="lab"|trainform|Обучение модели/)});
+
+
+test("local LLM generation uses a worker to keep the chat responsive", async () => {
+  const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
+  const llm = await readFile(new URL("../llm.js", import.meta.url), "utf8");
+  assert.match(llm, /new Worker\(new URL\("\.\/llm-worker\.js", import\.meta\.url\)/);
+  assert.match(worker, /self\.addEventListener\("message"/);
+  assert.match(worker, /type: "done"/);
+});
