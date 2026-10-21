@@ -109,7 +109,7 @@ export function createLanguageModelClient({ pipelineFactory = null, workerFactor
     if (workerFactory) {
       worker = workerFactory();
     } else if (typeof Worker !== "undefined") {
-      worker = new Worker(new URL("./llm-worker.js", import.meta.url), { type: "module" });
+      worker = new Worker(new URL("./llm-worker.js?build=20261021-wasm-safe", import.meta.url), { type: "module" });
     } else {
       throw new Error("Этот браузер не поддерживает Worker. Обнови браузер, чтобы запускать модель без блокировки интерфейса.");
     }
@@ -167,8 +167,7 @@ export function createLanguageModelClient({ pipelineFactory = null, workerFactor
     pipelinePromise = (async () => {
       onProgress("Подключаю движок языковой модели…");
       const factory = pipelineFactory || await defaultPipelineFactory();
-      const hasGpu = getDevice ? getDevice() === "webgpu" : typeof navigator !== "undefined" && Boolean(navigator.gpu);
-      const devices = hasGpu ? ["webgpu", "wasm"] : ["wasm"];
+      const devices = ["wasm"];
       let lastError;
       for (const device of devices) {
         try {
