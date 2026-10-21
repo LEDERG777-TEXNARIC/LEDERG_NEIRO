@@ -19,3 +19,5 @@ test("chat supports time, knowledge retrieval, web search and weather", () => {
   assert.match(source, /searchWeb/);
   assert.match(source, /getWeather/);
 });
+
+test("chat exposes only a user-facing optional explanation control",()=>{assert.match(page,/id="detail-mode"/);assert.doesNotMatch(page,/id="lab"|trainform|Обучение модели/)});
