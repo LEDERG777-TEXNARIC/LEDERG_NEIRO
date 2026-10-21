@@ -1,0 +1,46 @@
+const MOSCOW_ZONE = 'Europe/Moscow';
+export function getMoscowTime(now = new Date()) {
+  const date = now instanceof Date ? now : new Date(now);
+  if (Number.isNaN(date.getTime())) throw new TypeError('Некорректная дата');
+  const fmt = (options) => new Intl.DateTimeFormat('ru-RU', { timeZone: MOSCOW_ZONE, ...options }).format(date);
+  return { date: fmt({ weekday:'long', day:'numeric', month:'long', year:'numeric' }), time:fmt({hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}), timeZone:MOSCOW_ZONE, iso:date.toISOString() };
+}
+export function calculateExpression(expression) {
+  const input=String(expression??'').replace(/,/g,'.').replace(/×/g,'*').replace(/[÷·]/g,'/').replace(/−/g,'-').trim();
+  if(!input||input.length>120||!/^[\d\s.+\-*/^()%]+$/.test(input)) throw new Error('Разрешены только числа, скобки и операции + − × ÷ ^ %.');
+  const tokens=input.match(/\d+(?:\.\d+)?|[()+\-*/^%]/g)??[];
+  if(tokens.join('')!==input.replace(/\s+/g,'')) throw new Error('Не удалось распознать выражение. Пример: (12 + 8) / 4.');
+  let position=0; const peek=()=>tokens[position], take=()=>tokens[position++];
+  function primary(){const t=peek();if(t==='+'||t==='-'){take();const v=primary();return t==='-'?-v:v}if(t==='('){take();const v=sum();if(take()!==')')throw new Error('Проверь закрывающую скобку.');return v}if(/^\d/.test(t??'')){take();return Number(t)}throw new Error('Ожидалось число.')}
+  function power(){let a=primary();if(peek()==='^'){take();a**=unary()}return a}
+  function unary(){if(peek()==='+'){take();return unary()}if(peek()==='-'){take();return -unary()}return power()}
+  function product(){let a=unary();while(['*','/','%'].includes(peek())){const op=take(),b=unary();if((op==='/'||op==='%')&&b===0)throw new Error('Делить на ноль нельзя.');a=op==='*'?a*b:op==='/'?a/b:a%b}return a}
+  function sum(){let a=product();while(peek()==='+'||peek()==='-'){const op=take(),b=product();a=op==='+'?a+b:a-b}return a}
+  const result=sum();if(position!==tokens.length)throw new Error('В выражении есть лишние символы.');if(!Number.isFinite(result))throw new Error('Результат не является конечным числом.');return Number(result.toPrecision(12));
+}
+const ALIASES={
+m:['м','метр','метра','метров','метры'],km:['км','километр','километра','километров','километры'],cm:['см','сантиметр','сантиметра','сантиметров'],mm:['мм','миллиметр','миллиметра','миллиметров'],mi:['миля','мили','миль','mile','miles'],ft:['фут','фута','футов','ft'],inch:['дюйм','дюйма','дюймов','inch','inches'],
+kg:['кг','килограмм','килограмма','килограммов'],g:['г','грамм','грамма','граммов'],lb:['фунт','фунта','фунтов','lb','lbs'],t:['тонна','тонны','тонн','т'],
+s:['с','секунда','секунды','секунд','сек'],min:['мин','минута','минуты','минут'],h:['ч','час','часа','часов'],day:['день','дня','дней','сутки'],
+b:['байт','байта','байтов','байты'],kb:['кб','килобайт','килобайта','килобайтов'],mb:['мб','мегабайт','мегабайта','мегабайтов'],gb:['гб','гигабайт','гигабайта','гигабайтов'],
+c:['c','°c','градус цельсия','градуса цельсия','цельсия'],f:['f','°f','градус фаренгейта','фаренгейта'],kmh:['км/ч','кмч','километров в час'],ms:['м/с','метров в секунду']
+};
+const FACTOR={m:1,km:1000,cm:.01,mm:.001,mi:1609.344,ft:.3048,inch:.0254,kg:1,g:.001,lb:.45359237,t:1000,s:1,min:60,h:3600,day:86400,b:1,kb:1000,mb:1e6,gb:1e9,kmh:1/3.6,ms:1};
+const FAMILY={m:'length',km:'length',cm:'length',mm:'length',mi:'length',ft:'length',inch:'length',kg:'mass',g:'mass',lb:'mass',t:'mass',s:'time',min:'time',h:'time',day:'time',b:'data',kb:'data',mb:'data',gb:'data',kmh:'speed',ms:'speed',c:'temp',f:'temp'};
+function unitCode(input){const value=String(input).trim().toLocaleLowerCase('ru-RU');for(const [code,aliases] of Object.entries(ALIASES))if(code===value||aliases.includes(value))return code;return null}
+export function convertUnit(value,fromInput,toInput){const from=unitCode(fromInput),to=unitCode(toInput),n=Number(value);if(!Number.isFinite(n))throw new Error('Укажи корректное число.');if(!from||!to)throw new Error('Неизвестная единица измерения. Примеры: км, мили, кг, фунты, часы, минуты, ГБ, МБ, °C, °F.');if(FAMILY[from]!==FAMILY[to])throw new Error('Эти единицы относятся к разным типам величин.');let result;if(FAMILY[from]==='temp')result=from===to?n:from==='c'?n*9/5+32:(n-32)*5/9;else result=n*FACTOR[from]/FACTOR[to];return{value:Number(result.toFixed(5)),from,to,unit:to==='c'?'°C':to==='f'?'°F':to}}
+export function detectToolRequest(text){
+ const value=String(text??'').trim();if(!value)return null;
+ if(/(?:котор(?:ый|ое)\s+час|сколько\s+времени|время\s+(?:сейчас\s+)?(?:в\s+москве|по\s+мск|мск)|по\s+москве|московск(?:ое|ому)\s+время|дата\s+сегодня|сегодняшн(?:яя|юю)\s+дата)/iu.test(value))return{type:'time'};
+ const weather=value.match(/(?:погод[ауы]?|температура|прогноз погоды)\s*(?:сейчас\s*)?(?:в|для|на)\s+(.+?)[?.!]*$/iu);if(weather)return{type:'weather',query:weather[1].trim()};
+ if(/(?:погод[ауы]?|температура|прогноз погоды)\s*(?:сейчас)?[?.!]*$/iu.test(value))return{type:'weather',query:'Москва'};
+ const search=value.match(/^(?:поищи(?:\s+в\s+интернете)?|найди(?:\s+в\s+интернете)?|поиск(?:\s+в\s+интернете)?|что\s+известно\s+о|расскажи\s+по\s+свежим\s+данным\s+о)\s*[:,-]?\s*(.+)$/iu);if(search&&search[1].trim().length>=2)return{type:'search',query:search[1].trim()};
+ const calc=value.match(/^(?:посчитай|вычисли|сколько\s+будет|реши|калькулятор)\s*[:=]?\s*(.+)$/iu);if(calc)return{type:'calculate',expression:calc[1].replace(/[?=]$/u,'').trim()};
+ const conv=value.match(/^(?:конвертируй|переведи|пересчитай)\s+(-?\d+(?:[.,]\d+)?)\s+(.+?)\s+(?:в|во|->)\s+(.+?)[?.!]*$/iu);if(conv)return{type:'convert',value:Number(conv[1].replace(',','.')),from:conv[2].trim(),to:conv[3].trim()};
+ const math=value.match(/^[\d\s.,()+\-*/^×÷%]+[?]*$/u);if(math&&/\d\s*[+*/^%×÷-]|\(\s*\d/u.test(value))return{type:'calculate',expression:value.replace(/[?]$/u,'').trim()};
+ return null
+}
+function plainSnippet(html){return String(html??'').replace(/<[^>]+>/g,' ').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim()}
+export async function searchWikipedia(query,{lang='ru',fetchImpl=fetch,limit=5}={}){const q=String(query??'').trim().slice(0,180);if(q.length<2)throw new Error('Напиши, что нужно найти.');const host=lang==='en'?'en.wikipedia.org':'ru.wikipedia.org',url=new URL('https://'+host+'/w/api.php');Object.entries({action:'query',list:'search',srsearch:q,srlimit:String(Math.min(6,Math.max(1,limit))),format:'json',origin:'*'}).forEach(([k,v])=>url.searchParams.set(k,v));const response=await fetchImpl(url,{headers:{Accept:'application/json'},signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(9000):undefined});if(!response.ok)throw new Error('Поиск временно недоступен (HTTP '+response.status+').');const data=await response.json();return(data?.query?.search??[]).map((item)=>({title:item.title,snippet:plainSnippet(item.snippet),url:'https://'+host+'/wiki/'+encodeURIComponent(item.title.replace(/ /g,'_'))}))}
+const WEATHER={0:'ясно',1:'преимущественно ясно',2:'переменная облачность',3:'пасмурно',45:'туман',48:'изморозевый туман',51:'слабая морось',53:'морось',55:'сильная морось',61:'небольшой дождь',63:'дождь',65:'сильный дождь',71:'небольшой снег',73:'снег',75:'сильный снег',80:'ливневый дождь',81:'сильные ливни',82:'очень сильные ливни',95:'гроза',96:'гроза с градом',99:'гроза с градом'};
+export async function getWeather(city='Москва',{fetchImpl=fetch}={}){const geoUrl=new URL('https://geocoding-api.open-meteo.com/v1/search');Object.entries({name:String(city||'Москва').trim().slice(0,100),count:'1',language:'ru',format:'json'}).forEach(([k,v])=>geoUrl.searchParams.set(k,v));const opt={headers:{Accept:'application/json'},signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(9000):undefined};const geoResponse=await fetchImpl(geoUrl,opt);if(!geoResponse.ok)throw new Error('Не удалось найти город для прогноза.');const place=(await geoResponse.json())?.results?.[0];if(!place)throw new Error('Не нашла город «'+city+'». Укажи другой вариант.');const forecastUrl=new URL('https://api.open-meteo.com/v1/forecast');Object.entries({latitude:String(place.latitude),longitude:String(place.longitude),current:'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m',timezone:'auto'}).forEach(([k,v])=>forecastUrl.searchParams.set(k,v));const r=await fetchImpl(forecastUrl,opt);if(!r.ok)throw new Error('Сервис погоды временно не отвечает.');const data=await r.json(),c=data.current;if(!c)throw new Error('Сервис не прислал текущую погоду.');return{city:place.name+(place.country?', '+place.country:''),temperature:c.temperature_2m,feelsLike:c.apparent_temperature,humidity:c.relative_humidity_2m,wind:c.wind_speed_10m,condition:WEATHER[c.weather_code]??'условия не определены',time:c.time,timezone:data.timezone,source:'https://open-meteo.com/'}}
