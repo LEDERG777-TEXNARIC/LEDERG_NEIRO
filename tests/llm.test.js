@@ -59,3 +59,15 @@ test("dedicated worker handles model requests without blocking the page", async 
   assert.equal(response, "Ответ из worker");
   assert.ok(progress.includes("Загружаю модель…"));
 });
+
+
+test("worker points ONNX Runtime WASM assets at the site's self-hosted Pages directory", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(worker, /env\.backends\.onnx\.wasm\.wasmPaths\s*=/);
+  assert.match(worker, /vendor\/onnxruntime/);
+  assert.match(workflow, /onnxruntime-web@1\.22\.0-dev\.20250409-89f8206ba4/);
+  assert.match(workflow, /npm pack/);
+  assert.match(workflow, /ort-wasm-simd-threaded\.jsep\.wasm/);
+});
