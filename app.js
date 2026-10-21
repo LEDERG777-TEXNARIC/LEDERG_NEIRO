@@ -1,12 +1,12 @@
 import { trainModel, predictIntent } from "./model.js";
-import { KNOWLEDGE_BASE, searchKnowledge } from "./knowledge.js";
+import { KNOWLEDGE_BASE, searchKnowledgeMany } from "./knowledge.js";
 import { calculateExpression, convertUnit, detectToolRequest, getMoscowTime, getWeather, searchWikipedia } from "./tools.js";
 
 const $ = (selector) => document.querySelector(selector);
 const nodes = {
   chat: $("#chat"), welcome: $("#welcome"), form: $("#chat-form"),
   input: $("#message-input"), send: $("#send-button"), clock: $("#moscow-clock"),
-  counter: $("#counter"), typing: $("#typing"), reset: $("#new-chat"),
+  counter: $("#counter"), typing: $("#typing"), reset: $("#new-chat"), detail: $("#detail-mode"),
   quick: document.querySelectorAll("[data-prompt]")
 };
 const STORAGE_KEY = "lederg-neiro-chat-v2";
@@ -14,6 +14,7 @@ let messages = [];
 let requestCounter = 0;
 let pending = false;
 let trainedModel = null;
+let detailedMode = false;
 let toastTimer = null;
 
 function escapeText(value) { return String(value ?? ""); }
@@ -88,14 +89,47 @@ function stableVariant(query) {
   return Math.abs(hash) % 3;
 }
 function knowledgeAnswer(query) {
-  const item = searchKnowledge(query);
-  if (!item) return null;
+  const matches = searchKnowledgeMany(query, 3);
+  if (!matches.length) return null;
+  const primary = matches[0];
   const openings = ["", "Коротко: ", "Главное: "];
+  let content = openings[stableVariant(query)] + primary.answer;
+  const related = matches.slice(1).filter((item) => item.title !== primary.title && item.score >= Math.max(0.46, primary.score * 0.76)).slice(0, 1);
+  for (const item of related) content += "\n\nСвязанная тема — " + item.title + ":\n" + item.answer;
   return {
-    content: openings[stableVariant(query)] + item.answer,
-    sources: [item.source],
-    mode: "knowledge"
+    content,
+    sources: matches.filter((item) => item.score >= Math.max(0.44, primary.score * 0.72)).slice(0, 3).map((item) => item.source),
+    mode: "knowledge",
+    knowledgeTitle: primary.title,
+    relatedTitles: related.map((item) => item.title)
   };
+}
+function applyDetailedMode(query, answer) {
+  if (!detailedMode || !answer) return answer;
+  let note;
+  switch (answer.mode) {
+    case "knowledge":
+      note = "Я сопоставила формулировку вопроса с карточками собственной базы знаний, выбрала наиболее близкую тему и приложила ссылки, на которых основан ответ. Это справочный поиск, а не доказательство того, что каждый факт верен.";
+      break;
+    case "web":
+      note = "Я отправила запрос к открытой выдаче Wikipedia и показываю полученные результаты со ссылками. Это не полный индекс всего интернета; для последних новостей открывай поисковые источники и сверяй даты публикаций.";
+      break;
+    case "weather":
+      note = "Я запросила координаты указанного города, затем получила текущие метеоданные у Open-Meteo. Показанное время относится к данным сервиса; прогноз может обновляться.";
+      break;
+    case "time":
+      note = "Взяла системное время устройства и преобразовала его в IANA-зону Europe/Moscow, а не просто прибавила фиксированное число часов.";
+      break;
+    case "calculation":
+      note = "Выражение разобрано безопасным арифметическим парсером и вычислено локально, без выполнения JavaScript-кода из сообщения.";
+      break;
+    case "conversion":
+      note = "Я определила тип измерения и преобразовала значение через коэффициенты соответствующих единиц.";
+      break;
+    default:
+      note = answer.sources?.length ? "Я приложила доступные источники, чтобы ты мог проверить информацию независимо." : "У меня нет достаточной подтверждённой информации, поэтому я не буду додумывать отсутствующие факты.";
+  }
+  return { ...answer, content: answer.content + "\n\nКРАТКИЙ РАЗБОР\n" + note };
 }
 function webSearchLinks(query) {
   const encoded = encodeURIComponent(query);
@@ -200,7 +234,7 @@ async function sendMessage(raw) {
   const currentRequest = ++requestCounter;
   setPending(true);
   try {
-    const answer = await getAnswer(query);
+    const answer = applyDetailedMode(query, await getAnswer(query));
     if (currentRequest !== requestCounter) return;
     messages.push({ role: "assistant", content: answer?.content || "Не получилось сформировать ответ.", timestamp: Date.now(), sources: answer?.sources || [] });
   } catch (error) {
@@ -226,6 +260,7 @@ nodes.input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); nodes.form.requestSubmit(); }
 });
 nodes.reset.addEventListener("click", newConversation);
+nodes.detail.addEventListener("click", () => { detailedMode = !detailedMode; nodes.detail.setAttribute("aria-pressed", String(detailedMode)); nodes.detail.textContent = detailedMode ? "РАЗБОР: ВКЛ" : "РАЗБОР: ВЫКЛ"; });
 nodes.quick.forEach((button) => button.addEventListener("click", () => { nodes.input.value = button.dataset.prompt || ""; updateComposer(); nodes.form.requestSubmit(); }));
 loadHistory();
 try { trainedModel = trainModel({ epochs: 60, seed: 2026 }); } catch { trainedModel = null; }
