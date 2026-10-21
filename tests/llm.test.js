@@ -42,3 +42,20 @@ test("client loads a pinned public model and can generate through an injected te
   assert.equal(config.options.device,"webgpu");
   assert.equal(config.options.dtype,"q4f16");
 });
+
+
+test("dedicated worker handles model requests without blocking the page", async () => {
+  const progress = [];
+  const worker = {
+    onmessage: null,
+    onerror: null,
+    postMessage(message) {
+      queueMicrotask(() => this.onmessage({ data: { type: "progress", id: message.id, message: "Загружаю модель…" } }));
+      queueMicrotask(() => this.onmessage({ data: { type: "done", id: message.id, text: "Ответ из worker" } }));
+    }
+  };
+  const client = createLanguageModelClient({ workerFactory: () => worker });
+  const response = await client.generate([{ role: "user", content: "тест" }], { onProgress: (value) => progress.push(value) });
+  assert.equal(response, "Ответ из worker");
+  assert.ok(progress.includes("Загружаю модель…"));
+});
