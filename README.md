@@ -1,52 +1,54 @@
-# LEDERG NEIRO 0.2
+# LEDERG NEIRO 0.3
 
-Браузерный ИИ-эксперимент, опубликованный на GitHub Pages. Основные функции выполняются прямо в браузере, без собственного серверного приложения и без обязательных API-ключей.
+LEDERG NEIRO is a browser-based AI experiment published using GitHub Pages. The user interface is intentionally a chat only.
 
-## Что умеет версия 0.2
+## What works in this version
 
-- **89+ карточек базы знаний** на русском языке: ИИ и машинное обучение, веб-разработка, GitHub, безопасность, сети, компьютерное устройство, математика, наука, космос, история, география и другие темы.
-- **Поиск по базе знаний** с нормализацией русских слов, отбором релевантной карточки и ссылкой на первичный источник.
-- **Часы Москвы и текущая дата** через IANA time zone `Europe/Moscow`; используются часы устройства и корректное преобразование временной зоны.
-- **Безопасный калькулятор** для базовой арифметики, скобок, процентов и степеней — без `eval()`.
-- **Конвертация единиц** длины, массы, времени, данных, скорости и температуры.
-- **Текущая погода** через Open-Meteo API без ключа.
-- **Поиск Wikipedia** по живой выдаче MediaWiki API, плюс прямые ссылки на DuckDuckGo, Google и поиск по Wikipedia для более широкого веб-поиска.
-- Локальная история чатов, обучающие примеры классификатора, адаптивный чёрно-красный интерфейс.
+- **172+ curated knowledge cards** in Russian covering AI/ML, JavaScript/TypeScript, web development, GitHub, security, networking, computers, mathematics, physics, biology, geography, history, learning, and general concepts.
+- **Multi-card retrieval:** finds a relevant answer, may add a closely related card, and shows direct source links.
+- **Moscow date and time** using the IANA time zone `Europe/Moscow` (the displayed value depends on the device clock).
+- **Safe arithmetic calculator** and **unit conversion**, processed locally without evaluating user-supplied JavaScript.
+- **Live weather** through Open-Meteo, with a public source link.
+- **Live Wikipedia search** through the MediaWiki API, plus direct links to general search engines when broader results are needed.
+- **Optional concise explanation mode** which describes the answer method and limitations instead of exposing a private internal chain of thought.
+- **Chat-only UI:** no developer training lab, feature panels, or settings screen. Chat history remains in local browser storage.
 
-## Архитектура
+## How the answer flow works
 
-- `index.html` — интерфейс чата, подсказки, лаборатория.
-- `styles.css` — оформление и адаптивная вёрстка.
-- `app.js` — диспетчер запросов, поиск ответов, интеграция инструментов и интерфейс.
-- `model.js` — написанный на чистом JavaScript MLP-классификатор намерений: bag-of-words и пары слов, слой tanh, выход softmax, backpropagation.
-- `knowledge.js` — курируемые справочные карточки с ключевыми словами и источниками.
-- `tools.js` — московское время, арифметика, конвертация единиц, поиск Wikipedia и погода.
-- `tests/` — автоматические регрессионные тесты.
-- `.github/workflows/pages.yml` — тестирование и публикация GitHub Pages.
+1. Recognize dedicated tool requests (time, arithmetic, unit conversion, weather, web search).
+2. Search the curated knowledge base and rank matching entries.
+3. If the query is unclear, return a limited capability response rather than inventing a factual answer.
+4. Show links to supporting sources when available.
 
-## Важные ограничения
+## Architecture
 
-LEDERG NEIRO — ранняя гибридная система, **не** большая генеративная языковая модель. MLP выбирает тему сообщения; справочные ответы находятся в базе; расчёты выполняются детерминированно; данные погоды и поиск Wikipedia запрашиваются у внешних публичных сервисов. Обычный веб-поиск открывается ссылками в новой вкладке — GitHub Pages сам по себе не имеет backend для сбора выдачи поисковиков.
+- `index.html` — one chat interface.
+- `styles.css` — responsive black-and-red LEDERG UI.
+- `app.js` — request lifecycle, timeout fallback, tool routing, knowledge retrieval, citation display, local chat history.
+- `model.js` — handwritten MLP intent classifier (tanh hidden layer, softmax output, backpropagation).
+- `knowledge.js` — curated cards with category, title, keywords, answer, and source URL.
+- `tools.js` — time-zone handling, arithmetic, unit conversions, Wikipedia search, weather retrieval.
+- `tests/` — regression tests for the classifier, search tools, database retrieval, and UI flow.
+- `.github/workflows/pages.yml` — tests before GitHub Pages deployment.
 
-История диалогов и добавленные пользователем фразы сохраняются в `localStorage` текущего браузера. Они не синхронизируются между устройствами. Запросы погоды и поиска отправляются соответствующим внешним сервисам, поэтому не вводи в них секретные или чувствительные данные. Модель не обещает точность, сопоставимую с ChatGPT; факты с меняющейся актуальностью проверяй по источникам.
+## Important limitations
 
-## Локальная проверка
+This project is **not yet a full generative LLM**. The MLP classifies intents; the curated knowledge base retrieves known answers; separate utilities perform deterministic calculations; Wikipedia and Open-Meteo provide live external data. The general search links open search engines in a new tab — the page does not claim to read every page in the full web index.
 
-Требуется Node.js 20+. Зависимости устанавливать не нужно:
+A real LLM-like system needs a pretrained or trained generative language model with learned token-generation weights. Increasing a FAQ database alone cannot give a classifier the broad reasoning or free-form generation of such a model. Browser-only inference may be possible with a compact quantized model and compatible WebGPU, but model size, device performance, and download cost need to be evaluated before adding it.
+
+Requests to search and weather services go to those external services. Do not send passwords, API keys, or private data to them. Chat history is stored only in localStorage in the current browser and does not sync across devices.
+
+## Local tests
+
+Requires Node.js 20+. No dependencies need to be installed:
 
 ```bash
 npm test
 ```
 
-Для просмотра страницы используй локальный статический сервер, например `python -m http.server 8080`, и открой `http://localhost:8080`. Не открывай HTML через `file://`: браузер может блокировать ES-модули и сетевые запросы.
+For a local preview, run a static server from the repository root, e.g. `python -m http.server 8080`, then open `http://localhost:8080`. Do not open `index.html` via `file://`, because browsers may restrict JavaScript modules and cross-origin requests.
 
-## Публикация
+## Deployment
 
-Workflow запускает `npm test` для каждого push в `main` и только после прохождения тестов публикует корень репозитория через GitHub Pages. Состояние публикации доступно во вкладке Actions.
-
-## Используемые публичные источники
-
-- [Wikipedia / MediaWiki API](https://www.mediawiki.org/wiki/API:Cross-site_requests) — анонимный браузерный поиск с параметром `origin=*`.
-- [Open-Meteo](https://open-meteo.com/) — погода, геокодирование и API без ключа.
-- [IANA Time Zone Database](https://www.iana.org/time-zones) — часовые пояса.
-
+The GitHub Actions workflow runs `npm test` on pushes to `main`. If the tests pass, it deploys the static files using GitHub Pages.
