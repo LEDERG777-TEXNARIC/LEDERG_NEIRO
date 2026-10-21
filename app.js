@@ -28,7 +28,7 @@ function updateClock() {
 }
 function showProgress(text) {
   if (nodes.typing) nodes.typing.textContent = "LEDERG NEIRO · " + String(text || "Думаю…");
-  if (nodes.status && /готова к генерации|генерирует ответ|формирует ответ/i.test(text)) {
+  if (nodes.status && /готова к генерации|генер(?:ирует|ирую) ответ|формирует ответ/i.test(text)) {
     nodes.status.textContent = "МОДЕЛЬ ГОТОВА";
     nodes.status.classList.add("ready");
   }
