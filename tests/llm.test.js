@@ -43,7 +43,7 @@ test("client loads a pinned public model and can generate through an injected te
   assert.equal(result,"Сгенерированный ответ");
   assert.equal(config.task,"text-generation");
   assert.equal(config.model,"test/public-model");
-  assert.equal(config.options.device,"webgpu");
+  assert.equal(config.options.device,"wasm");
   assert.equal(config.options.dtype,"q4");
 });
 
@@ -71,7 +71,7 @@ test("worker pins the matching ONNX Runtime WASM CDN build", async () => {
   assert.doesNotMatch(worker, /vendor\/onnxruntime/);
 });
 
-test("worker uses q4 weights for WebGPU and WASM to avoid device-specific q4f16 corruption", async () => {
+test("browser inference prefers WASM instead of an unverified WebGPU backend", async () => {\n  const { readFile } = await import("node:fs/promises");\n  const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");\n  assert.match(adapter, /const devices = \["wasm"\]/);\n  assert.doesNotMatch(adapter, /const devices = hasGpu/);\n});\n\ntest("worker uses WASM for stable inference and cache-busts updated worker code", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
   assert.match(worker, /const dtype = "q4"/);
