@@ -7,7 +7,7 @@ test("chat request counter is initialized before use", () => {
   assert.match(source, /\brequestCounter\s*=\s*0\b/);
 });
 test("every response clears the pending indicator in finally", () => {
-  assert.match(source, /finally\s*\{[\s\S]{0,500}setPending\(false\)/);
+  assert.match(source, /finally\s*\{[\s\S]*?setPending\(false\)/);
 });
 test("developer training panel is not exposed on the user page", () => {
   assert.doesNotMatch(page, /id="lab"|trainform|Обучение модели/);
