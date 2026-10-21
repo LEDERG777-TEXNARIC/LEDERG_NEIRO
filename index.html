@@ -1,23 +1,46 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#090909">
-<meta name="description" content="LEDERG NEIRO — экспериментальная самописная нейросеть, работающая в браузере."><title>LEDERG NEIRO 0.2 — база знаний и онлайн-инструменты</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><script type="module" src="app.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080809">
+<meta name="description" content="LEDERG NEIRO — экспериментальная браузерная нейросеть с базой знаний, поиском, московским временем и инструментами.">
+<title>LEDERG NEIRO — ИИ-чат</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="app.js"></script>
 </head>
-<body><div class="app">
-<aside class="sidebar" id="sidebar">
-<a class="brand" href="./"><span class="bolt">ϟ</span><span><b>LEDERG <em>NEIRO</em></b><small>НЕЙРОСЕТЬ · 0.2.0</small></span></a>
-<button class="newchat" id="newchat">＋ <span>Новый диалог</span><kbd>Ctrl K</kbd></button>
-<p class="section">РАБОЧЕЕ ПРОСТРАНСТВО</p><button class="nav active">▤ <span>Диалог с ИИ</span></button><button class="nav" id="openlab">⌘ <span>Обучение модели</span><i id="customcount">0</i></button>
-<p class="section historytitle">ПОСЛЕДНИЕ ДИАЛОГИ <button id="clearhistory" title="Очистить историю">×</button></p><div id="history" class="history"><small>Здесь появятся твои диалоги</small></div>
-<div class="sidebottom"><div class="modelcard"><div><i class="green"></i> Модель активна <span>v0.1</span></div><b>NEIRO CORE</b><small>Самописная MLP-сеть</small><hr><footer><span id="vocabside">0 признаков</span><span id="knowledge-count">89 карточек</span><span>ЛОКАЛЬНО</span></footer></div><p class="privacy">◆ Запросы не отправляются на сервер</p></div>
-</aside>
-<main><header class="topbar"><button id="menubtn" class="menubtn">☰</button><div><small>ЛИЧНЫЙ ИНТЕЛЛЕКТ</small><b>Рабочая область <span>/</span> <em id="viewtitle">Новый диалог</em></b></div><div class="topactions"><label><i class="green"></i> LOCAL AI</label><label id="moscow-clock" title="Часы в часовом поясе Europe/Moscow">МСК --:--</label><button id="openlab2">⚙ <span>Модель</span></button></div></header>
-<section class="stage" id="stage"><div class="welcome" id="welcome"><div class="hero"><span>ϟ</span></div><p class="kicker">— ЭКСПЕРИМЕНТАЛЬНАЯ СИСТЕМА —</p><h1>Думай шире.<br><em>Создавай своё.</em></h1><p class="desc">Я — LEDERG NEIRO. Небольшая самописная нейросеть, которая обучается и работает прямо в твоём браузере.</p><div class="tags"><span>● Своя MLP-модель</span><span>● База знаний</span><span>● Поиск и погода онлайн</span></div>
-<div class="prompts"><button data-prompt="Кто ты и как работаешь?"><b>◈</b><span><strong>Познакомиться</strong><small>Кто ты и как работаешь?</small></span>↗</button><button data-prompt="Что такое нейросеть?"><b>⌘</b><span><strong>Разобраться</strong><small>Что такое нейросеть?</small></span>↗</button><button data-prompt="Как опубликовать сайт на GitHub Pages?"><b>▣</b><span><strong>Исследовать</strong><small>GitHub Pages и браузерный ИИ</small></span>↗</button><button data-prompt="Помоги с программированием"><b>〈/〉</b><span><strong>Создавать</strong><small>Программирование и код</small></span>↗</button><button data-prompt="Который час по Москве?"><b>◷</b><span><strong>Московское время</strong><small>Точная дата и часы по МСК</small></span>↗</button><button data-prompt="Поищи в интернете квантовые компьютеры"><b>⌕</b><span><strong>Найти в интернете</strong><small>Поиск по открытым источникам</small></span>↗</button><button data-prompt="Погода в Москве"><b>☼</b><span><strong>Погода онлайн</strong><small>Текущие условия по городу</small></span>↗</button><button data-prompt="Посчитай (128 + 64) / 4"><b>∑</b><span><strong>Калькулятор</strong><small>Арифметика без отправки данных</small></span>↗</button></div>
-<div class="note">ⓘ <span><b>Версия 0.2 — база знаний и инструменты.</b> Справочные ответы берутся из собственной базы, время и расчёты локальные. Поиск и погода отправляют запросы выбранным публичным сервисам. Это ещё не универсальная генеративная модель.</span></div></div><div id="messages" class="messages hidden" role="log" aria-live="polite"></div><div id="typing" class="typing hidden">▰ LEDERG NEIRO <span>анализирую запрос…</span></div></section>
-<footer class="composearea"><form id="chatform" class="composer"><textarea id="prompt" rows="1" maxlength="1200" placeholder="Напиши сообщение для LEDERG NEIRO…"></textarea><div class="composebottom"><small>↵ отправить　 ·　 Shift ↵ новая строка</small><div><small id="counter">0 / 1200</small><button id="send" disabled aria-label="Отправить">↑</button></div></div></form><p class="disclaimer">◆ История и обучающие примеры хранятся в этом браузере · запросы для поиска и погоды отправляются внешним источникам · не вводи секретные данные</p></footer>
-</main></div>
-<dialog id="lab"><header><div><small>NEIRO CORE / LAB</small><h2>Обучение модели</h2></div><button id="closelab">×</button></header><div class="labbody"><p>Добавляй фразы и показывай классификатору, к какому типу запроса они относятся. После изменений сеть переобучится прямо в браузере.</p><div class="metrics"><div><small>ПРИЗНАКИ</small><b id="metricvocab">—</b></div><div><small>СКРЫТЫЙ СЛОЙ</small><b>24</b></div><div><small>КЛАССЫ</small><b>11</b></div></div><div class="architecture">INPUT <span>→</span> HIDDEN · 24 <span>→</span> OUTPUT · 11</div><form id="trainform"><label for="phrase">Фраза пользователя</label><textarea id="phrase" maxlength="240" required placeholder="Например: объясни свою архитектуру"></textarea><label for="intent">Тип запроса</label><select id="intent"></select><button class="primary">＋ Добавить пример и переобучить</button><small id="trainstatus">Примеры сохраняются только в этом браузере.</small></form><h3>ТВОИ ПРИМЕРЫ <span id="examplecount">0</span></h3><div id="examples"></div><footer><small>MLP · tanh · softmax · backpropagation</small><button id="resetexamples">Удалить свои примеры</button></footer></div></dialog><div id="toast" class="toast" role="status"></div>
-</body></html>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="LEDERG NEIRO — главная"><span class="bolt">ϟ</span><span><b>LEDERG <em>NEIRO</em></b><small>ТВОЙ ИНТЕЛЛЕКТ</small></span></a>
+    <div class="top-status"><span class="live"><i></i> NEIRO ONLINE</span><time id="moscow-clock" title="Московское время" datetime="">МСК --:--</time></div>
+    <button id="new-chat" class="new-chat" type="button" title="Начать новый диалог" aria-label="Начать новый диалог">＋</button>
+  </header>
+  <main class="main">
+    <section id="chat" class="chat" role="log" aria-live="polite" aria-relevant="additions text"></section>
+    <section id="welcome" class="welcome">
+      <div class="hero">ϟ</div>
+      <p class="eyebrow">LEDERG NEIRO · ВАШ ИИ-ПОМОЩНИК</p>
+      <h1>Чем займёмся<br><em>сегодня?</em></h1>
+      <p class="subtitle">Задай вопрос обычным языком. Я проверю базу знаний, использую доступные инструменты и покажу источники, когда они есть.</p>
+      <div class="quick-prompts">
+        <button type="button" data-prompt="Что такое нейросеть?"><span>◈</span><b>Объясни тему</b><small>Ответы из базы знаний</small></button>
+        <button type="button" data-prompt="Поищи в интернете квантовые компьютеры"><span>⌕</span><b>Найди в интернете</b><small>Поиск и ссылки на источники</small></button>
+        <button type="button" data-prompt="Который час по Москве?"><span>◷</span><b>Время по Москве</b><small>Дата и часы МСК</small></button>
+        <button type="button" data-prompt="Погода в Берлине"><span>☼</span><b>Узнай погоду</b><small>Актуальные данные по городу</small></button>
+      </div>
+      <p class="disclaimer">Это ранняя экспериментальная система, а не большая генеративная LLM. Проверяй важные факты по источникам.</p>
+    </section>
+    <div id="typing" class="typing" hidden role="status">LEDERG NEIRO · анализирую запрос и проверяю источники…</div>
+  </main>
+  <footer class="compose-area">
+    <form id="chat-form" class="composer">
+      <textarea id="message-input" rows="1" maxlength="2000" aria-label="Сообщение LEDERG NEIRO" placeholder="Спроси что-нибудь…"></textarea>
+      <div class="composer-bottom"><small>ENTER — отправить · SHIFT + ENTER — новая строка</small><div><small id="counter">0 / 2000</small><button id="send-button" type="submit" disabled aria-label="Отправить сообщение">↑</button></div></div>
+    </form>
+    <p class="footnote">История хранится в этом браузере. Запросы поиска и погоды передаются соответствующим публичным сервисам.</p>
+  </footer>
+</div>
+</body>
+</html>
