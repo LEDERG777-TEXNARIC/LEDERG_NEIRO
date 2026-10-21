@@ -7,10 +7,10 @@ A minimal chat-first LEDERG AI experiment published on GitHub Pages. Text answer
 - **Model:** [Qwen2.5-0.5B-Instruct, ONNX Community](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
 - **Runtime:** [Transformers.js 3.8.1](https://huggingface.co/docs/transformers.js/en/pipelines), loaded from a version-pinned CDN URL.
 - **Inference:** dedicated Web Worker; WebGPU where supported, with a WASM/CPU fallback.
-- **Quantization:** `q4f16` for WebGPU; `q4` for the WASM fallback.
+- **Quantization:** `q4` for both WebGPU and the WASM fallback, matching the documented Qwen2.5-0.5B-Instruct example.
 - **Authentication:** no API key or hosted inference token is used. The browser downloads public model weights from Hugging Face and performs generation on the device.
 - **System prompt:** a Russian-language prompt in `llm.js` defines LEDERG identity, accuracy, uncertainty handling, web-search honesty, coding guidance, and prompt-injection boundaries.
-- **First use:** downloads roughly 500 MB of weights (varies with runtime/cache); later visits may reuse browser cache. The initial download can take time and uses local device memory/GPU.
+- **First use:** downloads roughly 800 MB of weights (varies with runtime/cache); later visits may reuse browser cache. The initial download can take time and uses local device memory/GPU.
 - **Model scale:** 0.5B parameters is compact and experimental; answer quality is not comparable to large hosted models.
 
 ## User-facing features
