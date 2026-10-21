@@ -40,9 +40,8 @@ test("client loads a pinned public model and can generate through an injected te
   assert.equal(config.task,"text-generation");
   assert.equal(config.model,"test/public-model");
   assert.equal(config.options.device,"webgpu");
-  assert.equal(config.options.dtype,"q4f16");
+  assert.equal(config.options.dtype,"q4");
 });
-
 
 test("dedicated worker handles model requests without blocking the page", async () => {
   const progress = [];
@@ -60,11 +59,17 @@ test("dedicated worker handles model requests without blocking the page", async 
   assert.ok(progress.includes("Загружаю модель…"));
 });
 
-
 test("worker pins the matching ONNX Runtime WASM CDN build", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
   assert.match(worker, /env\.backends\.onnx\.wasm\.wasmPaths\s*=/);
   assert.match(worker, /onnxruntime-web@1\.22\.0-dev\.20250409-89f8206ba4\/dist\//);
   assert.doesNotMatch(worker, /vendor\/onnxruntime/);
+});
+
+test("worker uses q4 weights for WebGPU and WASM to avoid device-specific q4f16 corruption", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
+  assert.match(worker, /const dtype = "q4"/);
+  assert.doesNotMatch(worker, /q4f16/);
 });
