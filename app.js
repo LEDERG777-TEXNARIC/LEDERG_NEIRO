@@ -654,9 +654,27 @@ async function sendMessage(raw) {
     if (currentRequest === requestCounter) {
       const code = detectReplyLanguage(query).code;
       const fail = {
-        en: "The request could not be processed: ", ru: "Не удалось обработать запрос: ",
-        uk: "Не вдалося обробити запит: ", de: "Die Anfrage konnte nicht verarbeitet werden: ",
-        es: "No se pudo procesar la solicitud: ", fr: "La demande n'a pas pu être traitée : "
+        en: "The request could not be processed: ",
+        ru: "Не удалось обработать запрос: ",
+        uk: "Не вдалося обробити запит: ",
+        de: "Die Anfrage konnte nicht verarbeitet werden: ",
+        es: "No se pudo procesar la solicitud: ",
+        fr: "La demande n'a pas pu être traitée : ",
+        pt: "Não foi possível processar o pedido: ",
+        it: "Impossibile elaborare la richiesta: ",
+        pl: "Nie udało się przetworzyć żądania: ",
+        tr: "İstek işlenemedi: ",
+        zh: "无法处理请求：",
+        ja: "リクエストを処理できませんでした：",
+        ko: "요청을 처리할 수 없습니다: ",
+        ar: "تعذرت معالجة الطلب: ",
+        hi: "अनुरोध संसाधित नहीं किया जा सका: ",
+        nl: "Het verzoek kon niet worden verwerkt: ",
+        be: "Не ўдалося апрацаваць запыт: ",
+        bg: "Заявката не може да бъде обработена: ",
+        el: "Δεν ήταν δυνατή η επεξεργασία του αιτήματος: ",
+        he: "לא ניתן היה לעבד את הבקשה: ",
+        th: "ไม่สามารถประมวลผลคำขอได้: "
       };
       messages.push({ role: "assistant", content: (fail[code] || fail.en) + (error?.message || "unknown error"), timestamp: Date.now(), sources: [] });
     }
