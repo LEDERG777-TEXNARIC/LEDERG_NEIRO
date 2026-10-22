@@ -1,6 +1,7 @@
 import { MODEL_ID, extractAssistantText, progressText } from "./llm.js";
 
 let generator = null;
+let TextStreamerClass = null;
 let currentModelId = MODEL_ID;
 let loadingPromise = null;
 
@@ -13,7 +14,8 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
   if (loadingPromise) return loadingPromise;
   loadingPromise = (async () => {
     progress(id, "Подключаю Transformers.js…");
-    const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
+    const { pipeline, env, TextStreamer } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
+    TextStreamerClass = TextStreamer || null;
     if (env) {
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
@@ -24,14 +26,15 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
       // single-threaded WASM runtime instead of requiring SharedArrayBuffer.
       env.backends.onnx.wasm.numThreads = 1;
     }
-    const devices = ["wasm"];
+    const hasGpu = typeof navigator !== "undefined" && Boolean(navigator.gpu);
+    const devices = hasGpu ? ["webgpu", "wasm"] : ["wasm"];
     let lastError;
     for (const device of devices) {
       try {
         progress(id, device === "webgpu"
-          ? "Подготавливаю WebGPU в фоновом потоке…"
-          : "Использую стабильный CPU/WASM-режим для корректной генерации…");
-        const dtype = "q4";
+          ? "Пробую ускорение WebGPU на видеокарте…"
+          : "Перехожу на совместимый CPU/WASM-режим…");
+        const dtype = device === "webgpu" ? "q4f16" : "q4";
         const loaded = await pipeline("text-generation", requestedModelId, {
           device,
           dtype,
@@ -44,6 +47,7 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
       } catch (error) {
         lastError = error;
         if (device !== "webgpu") break;
+        progress(id, "WebGPU не запустился. Перехожу на CPU/WASM без перезагрузки страницы…");
         progress(id, "GPU-инициализация не удалась. Пробую совместимый CPU-режим…");
       }
     }
@@ -70,7 +74,17 @@ self.addEventListener("message", async (event) => {
     }
     if (type !== "generate") throw new Error("Неизвестная операция локальной модели.");
     progress(id, "Генерирую ответ на устройстве…");
-    const output = await model(data.messages || [], data.options || { max_new_tokens: 256 });
+    const options = { ...(data.options || { max_new_tokens: 256 }) };
+    if (TextStreamerClass && model.tokenizer) {
+      options.streamer = new TextStreamerClass(model.tokenizer, {
+        skip_prompt: true,
+        skip_special_tokens: true,
+        callback_function: (piece) => {
+          if (piece) self.postMessage({ type: "token", id, text: String(piece) });
+        }
+      });
+    }
+    const output = await model(data.messages || [], options);
     const text = extractAssistantText(output);
     if (!text) throw new Error("Модель не вернула текст. Попробуй сформулировать запрос иначе.");
     self.postMessage({ type: "done", id, text });
