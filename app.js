@@ -311,15 +311,31 @@ function appendGeneratedToken(token) {
 }
 
 function confirmMemoryText(code, saved) {
-  const replies = {
-    en: saved ? "Saved to LEDERG NEIRO's local memory. Open Memory to review, edit, or delete it." : "Memory is full or that note is already saved. Open Memory to manage saved notes.",
-    ru: saved ? "Сохранила заметку в локальную память LEDERG NEIRO. Открой «Память», чтобы посмотреть, изменить или удалить её." : "Заметка уже сохранена или память заполнена. Открой «Память», чтобы управлять заметками.",
-    uk: saved ? "Зберегла нотатку в локальній пам’яті LEDERG NEIRO. Відкрий «Пам’ять», щоб переглянути, змінити або видалити її." : "Нотатку вже збережено або пам’ять заповнена. Відкрий «Пам’ять», щоб керувати нотатками.",
-    de: saved ? "In der lokalen LEDERG-NEIRO-Erinnerung gespeichert. Öffne „Gedächtnis“, um den Eintrag zu bearbeiten oder zu löschen." : "Der Eintrag ist bereits gespeichert oder der Speicher ist voll.",
-    es: saved ? "Guardado en la memoria local de LEDERG NEIRO. Abre «Memoria» para revisarlo, editarlo o eliminarlo." : "La nota ya existe o la memoria está llena.",
-    fr: saved ? "Enregistré dans la mémoire locale de LEDERG NEIRO. Ouvre « Mémoire » pour modifier ou supprimer cette note." : "Cette note existe déjà ou la mémoire est pleine."
+  const variants = {
+    en: ["Saved to LEDERG NEIRO's local memory. Open Memory to review, edit, or delete it.", "Memory is full or that note is already saved. Open Memory to manage saved notes."],
+    ru: ["Сохранила заметку в локальную память LEDERG NEIRO. Открой «Память», чтобы посмотреть, изменить или удалить её.", "Заметка уже сохранена или память заполнена. Открой «Память», чтобы управлять заметками."],
+    uk: ["Зберегла нотатку в локальній пам’яті LEDERG NEIRO. Відкрий «Пам’ять», щоб переглянути, змінити або видалити її.", "Нотатку вже збережено або пам’ять заповнена. Відкрий «Пам’ять», щоб керувати нотатками."],
+    de: ["In der lokalen LEDERG-NEIRO-Erinnerung gespeichert. Öffne „Gedächtnis“, um den Eintrag zu bearbeiten oder zu löschen.", "Der Eintrag ist bereits gespeichert oder der Speicher ist voll."],
+    es: ["Guardado en la memoria local de LEDERG NEIRO. Abre «Memoria» para revisarlo, editarlo o eliminarlo.", "La nota ya existe o la memoria está llena."],
+    fr: ["Enregistré dans la mémoire locale de LEDERG NEIRO. Ouvre « Mémoire » pour modifier ou supprimer cette note.", "Cette note existe déjà ou la mémoire est pleine."],
+    pt: ["Guardado na memória local da LEDERG NEIRO. Abre «Memória» para rever, editar ou eliminar a nota.", "A nota já existe ou a memória está cheia."],
+    it: ["Salvato nella memoria locale di LEDERG NEIRO. Apri «Memoria» per rivedere, modificare o eliminare la nota.", "La nota esiste già o la memoria è piena."],
+    pl: ["Zapisano w lokalnej pamięci LEDERG NEIRO. Otwórz „Pamięć”, aby przejrzeć, edytować lub usunąć notatkę.", "Ta notatka już istnieje albo pamięć jest pełna."],
+    tr: ["LEDERG NEIRO'nun yerel belleğine kaydedildi. Notu incelemek, düzenlemek veya silmek için Bellek'i aç.", "Not zaten kayıtlı veya bellek dolu."],
+    zh: ["已保存到 LEDERG NEIRO 的本地记忆。打开“记忆”即可查看、编辑或删除。", "该笔记已存在或记忆空间已满。"],
+    ja: ["LEDERG NEIRO のローカルメモリに保存しました。「メモリ」を開いて確認・編集・削除できます。", "このメモは既に保存されているか、メモリがいっぱいです。"],
+    ko: ["LEDERG NEIRO의 로컬 메모리에 저장했습니다. 메모리를 열어 확인, 수정 또는 삭제할 수 있습니다.", "이미 저장된 메모이거나 메모리가 가득 찼습니다."],
+    ar: ["تم الحفظ في ذاكرة LEDERG NEIRO المحلية. افتح الذاكرة للمراجعة أو التعديل أو الحذف.", "الملاحظة محفوظة بالفعل أو أن الذاكرة ممتلئة."],
+    hi: ["LEDERG NEIRO की स्थानीय मेमोरी में सहेजा गया। इसे देखने, संपादित करने या हटाने के लिए मेमोरी खोलें।", "यह नोट पहले से मौजूद है या मेमोरी भर गई है।"],
+    nl: ["Opgeslagen in het lokale geheugen van LEDERG NEIRO. Open Geheugen om de notitie te bekijken, bewerken of verwijderen.", "De notitie bestaat al of het geheugen is vol."],
+    be: ["Захавала нататку ў лакальную памяць LEDERG NEIRO. Адкрый «Памяць», каб праглядзець, змяніць або выдаліць яе.", "Нататка ўжо захавана або памяць запоўненая."],
+    bg: ["Запазих бележката в локалната памет на LEDERG NEIRO. Отвори „Памет“, за да я прегледаш, редактираш или изтриеш.", "Бележката вече съществува или паметта е пълна."],
+    el: ["Αποθηκεύτηκε στην τοπική μνήμη του LEDERG NEIRO. Άνοιξε τη Μνήμη για προβολή, επεξεργασία ή διαγραφή.", "Η σημείωση υπάρχει ήδη ή η μνήμη είναι πλήρης."],
+    he: ["נשמר בזיכרון המקומי של LEDERG NEIRO. פתח את הזיכרון כדי לעיין, לערוך או למחוק את ההערה.", "ההערה כבר קיימת או שהזיכרון מלא."],
+    th: ["บันทึกไว้ในหน่วยความจำในเครื่องของ LEDERG NEIRO แล้ว เปิดเมนูความจำเพื่อดู แก้ไข หรือลบ", "บันทึกนี้มีอยู่แล้วหรือหน่วยความจำเต็ม"]
   };
-  return replies[code] || replies.en;
+  const pair = variants[code] || variants.en;
+  return pair[saved ? 0 : 1];
 }
 
 function openMemoryDialog() {
@@ -604,6 +620,16 @@ async function getAnswer(query, { onToken = () => {} } = {}) {
       return generateModelAnswer(query, { webResult: { content: "The weather provider request failed. Be transparent that live weather data is unavailable." }, onToken });
     }
   }
+  if (tool && !TOOL_TEXT[language.code]) {
+    const result = await runTool(tool, "en");
+    return generateModelAnswer(query, {
+      webResult: {
+        content: "Verified output from a built-in LEDERG NEIRO tool. Translate the explanation into the user's language, preserve all numerical values and units, and do not claim the tool used live web search.\n\n" + String(result?.content || ""),
+        sources: result?.sources || []
+      },
+      onToken
+    });
+  }
   if (tool) return runTool(tool, language.code);
   const matches = searchKnowledgeMany(query, 3);
   return generateModelAnswer(query, { matches, onToken });
@@ -637,9 +663,11 @@ async function sendMessage(raw) {
   } finally {
     if (currentRequest === requestCounter) {
       setPending(false); renderAll(); saveHistory(); updateComposer(); nodes.input.focus();
-      if (nodes.status && !languageModel.isLoaded) {
-        nodes.status.textContent = "QWEN 0.5B · LOCAL";
-        nodes.status.classList.remove("ready");
+      if (nodes.status) {
+        const ready = Boolean(languageModel.isLoaded);
+        nodes.status.textContent = ready ? "МОДЕЛЬ ГОТОВА" : "QWEN 0.5B · LOCAL";
+        nodes.status.classList.toggle("ready", ready);
+        nodes.status.title = ready ? "Локальная языковая модель загружена" : "Локальная модель: WebGPU с автоматическим CPU/WASM fallback";
       }
     }
   }
