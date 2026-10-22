@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calculateExpression,convertUnit,getMoscowTime,detectToolRequest,searchWikipedia} from '../tools.js';
+import {calculateExpression,convertUnit,getMoscowTime,detectToolRequest,searchWikipedia,getWikipediaExtract} from '../tools.js';
 test('calculator handles arithmetic and parentheses without eval',()=>{assert.equal(calculateExpression('(12 + 8) / 4 * 3'),15);assert.equal(calculateExpression('2^3 + 1'),9)});
 test('calculator rejects arbitrary code and division by zero',()=>{assert.throws(()=>calculateExpression('globalThis.process.exit()'));assert.throws(()=>calculateExpression('1 / 0'))});
 test('unit conversion supports distance and temperature',()=>{assert.equal(convertUnit(10,'км','мили').value,6.21371);assert.equal(convertUnit(10,'км','мили').unit,'миль');assert.equal(convertUnit(0,'c','f').value,32)});
@@ -24,4 +24,24 @@ test('Wikipedia live search supports user-language editions', async () => {
     return { ok: true, json: async () => ({ query: { search: [] } }) };
   }});
   assert.equal(called.hostname, 'uk.wikipedia.org');
+});
+
+
+test('article extract API provides readable context with a public CORS request', async () => {
+  let called;
+  const article = await getWikipediaExtract('Neural network', {
+    lang: 'en',
+    fetchImpl: async (url) => {
+      called = url;
+      return {
+        ok: true,
+        json: async () => ({ query: { pages: { '123': { pageid: 123, title: 'Neural network', extract: 'A neural network is a machine learning model.' } } } })
+      };
+    }
+  });
+  assert.equal(called.searchParams.get('origin'), '*');
+  assert.equal(called.searchParams.get('prop'), 'extracts');
+  assert.equal(article.title, 'Neural network');
+  assert.match(article.extract, /machine learning/);
+  assert.match(article.url, /en\.wikipedia\.org\/wiki/);
 });
