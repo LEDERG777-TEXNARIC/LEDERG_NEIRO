@@ -29,16 +29,34 @@ const FACTOR={m:1,km:1000,cm:.01,mm:.001,mi:1609.344,ft:.3048,inch:.0254,kg:1,g:
 const FAMILY={m:'length',km:'length',cm:'length',mm:'length',mi:'length',ft:'length',inch:'length',kg:'mass',g:'mass',lb:'mass',t:'mass',s:'time',min:'time',h:'time',day:'time',b:'data',kb:'data',mb:'data',gb:'data',kmh:'speed',ms:'speed',c:'temp',f:'temp'};
 function unitCode(input){const value=String(input).trim().toLocaleLowerCase('ru-RU');for(const [code,aliases] of Object.entries(ALIASES))if(code===value||aliases.includes(value))return code;return null}
 export function convertUnit(value,fromInput,toInput){const from=unitCode(fromInput),to=unitCode(toInput),n=Number(value);if(!Number.isFinite(n))throw new Error('Укажи корректное число.');if(!from||!to)throw new Error('Неизвестная единица измерения. Примеры: км, мили, кг, фунты, часы, минуты, ГБ, МБ, °C, °F.');if(FAMILY[from]!==FAMILY[to])throw new Error('Эти единицы относятся к разным типам величин.');let result;if(FAMILY[from]==='temp')result=from===to?n:from==='c'?n*9/5+32:(n-32)*5/9;else result=n*FACTOR[from]/FACTOR[to];return{value:Number(result.toFixed(5)),from,to,unit:to==='c'?'°C':to==='f'?'°F':({m:'м',km:'км',cm:'см',mm:'мм',mi:'миль',ft:'фут',inch:'дюйм',kg:'кг',g:'г',lb:'фунта',t:'т',s:'с',min:'мин',h:'ч',day:'дней',b:'байт',kb:'кБ',mb:'МБ',gb:'ГБ',kmh:'км/ч',ms:'м/с'}[to]||to)}}
-export function detectToolRequest(text){
- const value=String(text??'').trim();if(!value)return null;
- if(/(?:котор(?:ый|ое)\s+час|сколько\s+времени|время\s+(?:сейчас\s+)?(?:в\s+москве|по\s+мск|мск)|по\s+москве|московск(?:ое|ому)\s+время|дата\s+сегодня|сегодняшн(?:яя|юю)\s+дата)/iu.test(value))return{type:'time'};
- const weather=value.match(/(?:погод[ауы]?|температура|прогноз погоды)\s*(?:сейчас\s*)?(?:в|для|на)\s+(.+?)[?.!]*$/iu);if(weather)return{type:'weather',query:weather[1].trim()};
- if(/(?:погод[ауы]?|температура|прогноз погоды)\s*(?:сейчас)?[?.!]*$/iu.test(value))return{type:'weather',query:'Москва'};
- const search=value.match(/^(?:поищи(?:\s+в\s+интернете)?|найди(?:\s+в\s+интернете)?|поиск(?:\s+в\s+интернете)?|что\s+известно\s+о|расскажи\s+по\s+свежим\s+данным\s+о)\s*[:,-]?\s*(.+)$/iu);if(search&&search[1].trim().length>=2)return{type:'search',query:search[1].trim()};
- const calc=value.match(/^(?:посчитай|вычисли|сколько\s+будет|реши|калькулятор)\s*[:=]?\s*(.+)$/iu);if(calc)return{type:'calculate',expression:calc[1].replace(/[?=]$/u,'').trim()};
- const conv=value.match(/^(?:конвертируй|переведи|пересчитай)\s+(-?\d+(?:[.,]\d+)?)\s+(.+?)\s+(?:в|во|->)\s+(.+?)[?.!]*$/iu);if(conv)return{type:'convert',value:Number(conv[1].replace(',','.')),from:conv[2].trim(),to:conv[3].trim()};
- const math=value.match(/^[\d\s.,()+\-*/^×÷%]+[?]*$/u);if(math&&/\d\s*[+*/^%×÷-]|\(\s*\d/u.test(value))return{type:'calculate',expression:value.replace(/[?]$/u,'').trim()};
- return null
+export function detectToolRequest(text) {
+  const value = String(text ?? "").trim();
+  if (!value) return null;
+
+  if (/(?:котор(?:ый|ое)\s+час|сколько\s+времени|время\s+(?:сейчас\s+)?(?:в\s+москве|по\s+мск|мск)|по\s+москве|московск(?:ое|ому)\s+время|дата\s+сегодня|сегодняшн(?:яя|юю)\s+дата|what time is it|current time|time in moscow|today'?s date)/iu.test(value)) {
+    return { type: "time" };
+  }
+
+  const weather = value.match(/(?:погод[ауы]?|температура|прогноз погоды|weather|forecast|temperature)\s*(?:сейчас\s*|right now\s*)?(?:в|для|на|in|for|at)\s+(.+?)[?.!]*$/iu);
+  if (weather) return { type: "weather", query: weather[1].trim() };
+  if (/(?:погод[ауы]?|температура|прогноз погоды|weather|forecast|temperature)\s*(?:сейчас|right now)?[?.!]*$/iu.test(value)) {
+    return { type: "weather", query: "Москва" };
+  }
+
+  const search = value.match(/^(?:поищи(?:\s+в\s+интернете)?|найди(?:\s+в\s+интернете)?|поиск(?:\s+в\s+интернете)?|что\s+известно\s+о|расскажи\s+по\s+свежим\s+данным\s+о|please\s+)?(?:search(?:\s+(?:the\s+)?(?:web|internet|online))?|search\s+for|look\s+up|find\s+(?:online|on\s+the\s+web)|google|find\s+out\s+about)\s*[:,-]?\s*(.+)$/iu);
+  if (search && search[1].trim().length >= 2) return { type: "search", query: search[1].trim() };
+
+  const calc = value.match(/^(?:посчитай|вычисли|сколько\s+будет|реши|калькулятор|calculate|compute|solve)\s*[:=]?\s*(.+)$/iu);
+  if (calc) return { type: "calculate", expression: calc[1].replace(/[?=]$/u, "").trim() };
+
+  const conv = value.match(/^(?:конвертируй|переведи|пересчитай|convert)\s+(-?\d+(?:[.,]\d+)?)\s+(.+?)\s+(?:в|во|->|to|into)\s+(.+?)[?.!]*$/iu);
+  if (conv) return { type: "convert", value: Number(conv[1].replace(",", ".")), from: conv[2].trim(), to: conv[3].trim() };
+
+  const math = value.match(/^[\d\s.,()+\-*/^×÷%]+[?]*$/u);
+  if (math && /\d\s*[+*/^%×÷-]|\(\s*\d/u.test(value)) {
+    return { type: "calculate", expression: value.replace(/[?]$/u, "").trim() };
+  }
+  return null;
 }
 function plainSnippet(html){return String(html??'').replace(/<[^>]+>/g,' ').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim()}
 export async function searchWikipedia(query,{lang='ru',fetchImpl=fetch,limit=5}={}){const q=String(query??'').trim().slice(0,180);if(q.length<2)throw new Error('Напиши, что нужно найти.');const host=lang==='en'?'en.wikipedia.org':'ru.wikipedia.org',url=new URL('https://'+host+'/w/api.php');Object.entries({action:'query',list:'search',srsearch:q,srlimit:String(Math.min(6,Math.max(1,limit))),format:'json',origin:'*'}).forEach(([k,v])=>url.searchParams.set(k,v));const response=await fetchImpl(url,{headers:{Accept:'application/json'},signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(9000):undefined});if(!response.ok)throw new Error('Поиск временно недоступен (HTTP '+response.status+').');const data=await response.json();return(data?.query?.search??[]).map((item)=>({title:item.title,snippet:plainSnippet(item.snippet),url:'https://'+host+'/wiki/'+encodeURIComponent(item.title.replace(/ /g,'_'))}))}
