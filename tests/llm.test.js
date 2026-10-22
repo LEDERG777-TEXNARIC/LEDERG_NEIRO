@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SYSTEM_PROMPT, MODEL_ID, MODEL_SIZE_HINT, buildChatMessages, extractAssistantText, createLanguageModelClient } from "../llm.js";
+import { SYSTEM_PROMPT, MODEL_ID, MODEL_SIZE_HINT, detectReplyLanguage, buildChatMessages, extractAssistantText, createLanguageModelClient } from "../llm.js";
 
 test("model size hint matches the q4 weight variant", () => {
   assert.match(MODEL_SIZE_HINT, /800/);
@@ -8,9 +8,9 @@ test("model size hint matches the q4 weight variant", () => {
 
 test("system prompt sets identity, accuracy, web honesty and privacy boundaries", () => {
   assert.match(SYSTEM_PROMPT, /LEDERG NEIRO/);
-  assert.match(SYSTEM_PROMPT, /Не выдумывай факты/);
-  assert.match(SYSTEM_PROMPT, /не показывай скрытые внутренние рассуждения/i);
-  assert.match(SYSTEM_PROMPT, /внешние данные/i);
+  assert.match(SYSTEM_PROMPT, /Never fabricate facts/i);
+  assert.match(SYSTEM_PROMPT, /Do not reveal private chain-of-thought/i);
+  assert.match(SYSTEM_PROMPT, /untrusted data/i);
 });
 test("chat messages include system prompt, bounded history and retrieved context", () => {
   const list = buildChatMessages({
@@ -21,9 +21,10 @@ test("chat messages include system prompt, bounded history and retrieved context
   });
   assert.equal(list[0].role, "system");
   assert.match(list[0].content, /LEDERG NEIRO/);
+  assert.match(list[0].content, /MANDATORY RESPONSE LANGUAGE: Russian/);
   assert.equal(list[1].content, "привет");
   assert.match(list.at(-1).content, /attention/);
-  assert.match(list.at(-1).content, /РЕЗУЛЬТАТЫ ПОИСКА/);
+  assert.match(list.at(-1).content, /LIVE SEARCH RESULTS/);
 });
 test("generated response parser supports chat and plain text formats", () => {
   assert.equal(extractAssistantText([{generated_text:[{role:"user",content:"привет"},{role:"assistant",content:"Здравствуйте!"}]}]), "Здравствуйте!");
@@ -43,8 +44,8 @@ test("client loads a pinned public model and can generate through an injected te
   assert.equal(result,"Сгенерированный ответ");
   assert.equal(config.task,"text-generation");
   assert.equal(config.model,"test/public-model");
-  assert.equal(config.options.device,"wasm");
-  assert.equal(config.options.dtype,"q4");
+  assert.equal(config.options.device,"webgpu");
+  assert.equal(config.options.dtype,"q4f16");
 });
 
 test("dedicated worker handles model requests without blocking the page", async () => {
@@ -78,7 +79,7 @@ test("browser inference prefers WASM instead of an unverified WebGPU backend", a
   assert.doesNotMatch(adapter, /const devices = hasGpu/);
 });
 
-test("worker uses WASM for stable inference and cache-busts updated worker code", async () => {
+test("worker streams tokens and cache-busts updated worker code", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
   const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");
@@ -87,4 +88,38 @@ test("worker uses WASM for stable inference and cache-busts updated worker code"
   assert.doesNotMatch(worker, /const devices = hasGpu/);
   assert.doesNotMatch(worker, /q4f16/);
   assert.match(adapter, /llm-worker\.js\?build=/);
+});
+
+
+test("language detector follows common user languages instead of forcing Russian", () => {
+  assert.equal(detectReplyLanguage("Hello, can you help me?").code, "en");
+  assert.equal(detectReplyLanguage("Привет, помоги мне с проектом").code, "ru");
+  assert.equal(detectReplyLanguage("Будь ласка, поясни це").code, "uk");
+  assert.equal(detectReplyLanguage("Hallo, ich brauche Hilfe").code, "de");
+  assert.equal(detectReplyLanguage("Hola, ¿puedes ayudarme?").code, "es");
+  assert.equal(detectReplyLanguage("Bonjour, peux-tu m'aider ?").code, "fr");
+  assert.equal(detectReplyLanguage("こんにちは").code, "ja");
+  assert.equal(detectReplyLanguage("你好").code, "zh");
+});
+
+test("memory context is included as reference data and does not override language lock", () => {
+  const list = buildChatMessages({ query: "How are you?", memoryContext: "USER MEMORY: Prefers concise answers." });
+  assert.match(list[0].content, /MANDATORY RESPONSE LANGUAGE: English/);
+  assert.match(list.at(-1).content, /USER MEMORY/);
+  assert.match(list.at(-1).content, /Prefers concise answers/);
+});
+
+test("worker token messages reach onToken callback", async () => {
+  const seen = [];
+  const worker = {
+    onmessage: null, onerror: null,
+    postMessage(message) {
+      queueMicrotask(() => this.onmessage({ data: { type: "token", id: message.id, text: "Live " } }));
+      queueMicrotask(() => this.onmessage({ data: { type: "done", id: message.id, text: "Live answer" } }));
+    }
+  };
+  const client = createLanguageModelClient({ workerFactory: () => worker });
+  const result = await client.generate([{ role: "user", content: "test" }], { onToken: (text) => seen.push(text) });
+  assert.equal(result, "Live answer");
+  assert.deepEqual(seen, ["Live "]);
 });
