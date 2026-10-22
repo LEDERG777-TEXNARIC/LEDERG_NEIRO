@@ -1,6 +1,8 @@
 import { searchKnowledgeMany } from "./knowledge.js";
 import { calculateExpression, convertUnit, detectToolRequest, getMoscowTime, getWeather, searchWikipedia } from "./tools.js";
-import { buildChatMessages, languageModel, MODEL_ID, MODEL_REPOSITORY } from "./llm.js";
+import { buildChatMessages, detectReplyLanguage, languageModel, MODEL_ID, MODEL_REPOSITORY } from "./llm.js";
+import { CHAT_STORAGE_KEY, LEGACY_HISTORY_KEY, createChat, deleteChat, deriveChatTitle, loadChatStore, renameChat, saveChatStore, upsertChat } from "./chat-store.js";
+import { addMemory, formatMemoryContext, loadMemory, parseRememberCommand, saveMemory as persistMemory } from "./memory.js";
 
 const $ = (selector) => document.querySelector(selector);
 const nodes = {
@@ -8,13 +10,25 @@ const nodes = {
   input: $("#message-input"), send: $("#send-button"), clock: $("#moscow-clock"),
   counter: $("#counter"), typing: $("#typing"), reset: $("#new-chat"),
   detail: $("#detail-mode"), status: $("#model-status"),
-  quick: document.querySelectorAll("[data-prompt]")
+  quick: document.querySelectorAll("[data-prompt]"),
+  toggleChats: $("#toggle-chats"), closeChats: $("#close-chats"),
+  sidebar: $("#chat-sidebar"), sidebarBackdrop: $("#sidebar-backdrop"),
+  addChat: $("#add-chat"), chatList: $("#chat-list"),
+  memoryOpen: $("#memory-open"), memoryDialog: $("#memory-dialog"),
+  memoryInput: $("#memory-input"), memorySave: $("#memory-save"),
+  memoryClose: $("#memory-close"), memoryClear: $("#memory-clear"),
+  memoryCount: $("#memory-count")
 };
-const STORAGE_KEY = "lederg-neiro-chat-v3";
+const STORAGE_KEY = LEGACY_HISTORY_KEY;
+let chats = [];
+let activeChatId = null;
 let messages = [];
 let requestCounter = 0;
 let pending = false;
 let detailedMode = false;
+let streamingRow = null;
+let streamingBody = null;
+let streamedTokenCount = 0;
 
 function formatNumber(value) { return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 8 }).format(value); }
 function formatTime(timestamp = Date.now()) {
@@ -39,15 +53,64 @@ function setPending(value) {
   nodes.typing.hidden = !pending;
   if (pending) showProgress("готовлю ответ…");
 }
-function saveHistory() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-80))); } catch { /* Storage may be unavailable in private mode. */ }
+function applyChatState(nextChats, nextActiveChatId = activeChatId) {
+  const state = saveChatStore(nextChats, nextActiveChatId);
+  chats = state.chats;
+  activeChatId = state.activeChatId;
+  const active = chats.find((chat) => chat.id === activeChatId);
+  messages = active ? active.messages : [];
+  renderChatList();
 }
+
+function saveHistory() {
+  if (!activeChatId || !chats.some((chat) => chat.id === activeChatId)) {
+    const created = createChat();
+    chats = upsertChat(chats, created);
+    activeChatId = created.id;
+  }
+  const active = chats.find((chat) => chat.id === activeChatId);
+  const firstUser = messages.find((item) => item.role === "user");
+  const title = active?.title === "Новый чат" && firstUser ? deriveChatTitle(firstUser.content) : (active?.title || "Новый чат");
+  const updated = { ...(active || createChat()), title, messages: messages.slice(-80), updatedAt: Date.now() };
+  const next = upsertChat(chats, updated);
+  const state = saveChatStore(next, activeChatId);
+  chats = state.chats;
+  activeChatId = state.activeChatId;
+  messages = chats.find((chat) => chat.id === activeChatId)?.messages || [];
+  renderChatList();
+}
+
 function loadHistory() {
+  const stored = loadChatStore();
+  if (stored?.chats?.length) {
+    chats = stored.chats;
+    activeChatId = stored.activeChatId || chats[0].id;
+    messages = chats.find((chat) => chat.id === activeChatId)?.messages || [];
+    renderChatList();
+    return;
+  }
+
+  let legacyMessages = [];
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    if (Array.isArray(saved)) messages = saved.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string").slice(-80);
-  } catch { messages = []; }
+    if (Array.isArray(saved)) {
+      legacyMessages = saved.filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string").slice(-80);
+    }
+  } catch { legacyMessages = []; }
+
+  const firstUser = legacyMessages.find((item) => item.role === "user");
+  const migrated = createChat({
+    title: firstUser ? deriveChatTitle(firstUser.content) : "Новый чат",
+    messages: legacyMessages
+  });
+  chats = [migrated];
+  activeChatId = migrated.id;
+  messages = migrated.messages;
+  saveChatStore(chats, activeChatId);
+  renderChatList();
 }
+
+
 function addSources(parent, sources) {
   if (!Array.isArray(sources) || !sources.length) return;
   const wrap = document.createElement("div"); wrap.className = "sources";
@@ -66,30 +129,212 @@ function addSources(parent, sources) {
   }
   if (wrap.childElementCount > 1) parent.append(wrap);
 }
-function renderMessage(message) {
-  const row = document.createElement("article"); row.className = "message " + message.role;
-  const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = message.role === "assistant" ? "ϟ" : "ТЫ";
+function renderMessage(message, index = -1) {
+  const row = document.createElement("article");
+  row.className = "message " + message.role;
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = message.role === "assistant" ? "ϟ" : "ТЫ";
   const content = document.createElement("div"); content.className = "message-content";
   const head = document.createElement("div"); head.className = "message-head";
   const name = document.createElement("b"); name.textContent = message.role === "assistant" ? "LEDERG NEIRO" : "ТЫ";
-  const time = document.createElement("time"); time.textContent = formatTime(message.timestamp); time.dateTime = new Date(message.timestamp || Date.now()).toISOString();
+  const time = document.createElement("time"); time.textContent = formatTime(message.timestamp);
+  time.dateTime = new Date(message.timestamp || Date.now()).toISOString();
   head.append(name, time); content.append(head);
   const body = document.createElement("div"); body.className = "message-text"; body.textContent = String(message.content ?? ""); content.append(body);
   addSources(content, message.sources);
+
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
+  if (message.role === "user" && index >= 0) {
+    const edit = document.createElement("button");
+    edit.type = "button"; edit.className = "message-edit"; edit.textContent = "ИЗМЕНИТЬ";
+    edit.setAttribute("aria-label", "Изменить сообщение и пересоздать ответ");
+    edit.addEventListener("click", () => {
+      const revised = window.prompt("Отредактируй запрос. Последующие сообщения будут удалены, ответ будет сгенерирован заново.", message.content);
+      if (revised === null || !revised.trim()) return;
+      ++requestCounter; pending = false;
+      messages = messages.slice(0, index);
+      saveHistory(); renderAll(); updateComposer();
+      void sendMessage(revised.trim());
+    });
+    actions.append(edit);
+  } else if (message.role === "assistant" && message.content) {
+    const copy = document.createElement("button");
+    copy.type = "button"; copy.className = "message-action"; copy.textContent = "КОПИРОВАТЬ";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(message.content);
+        copy.textContent = "СКОПИРОВАНО";
+      } catch {
+        copy.textContent = "СКОПИРУЙ ВРУЧНУЮ";
+        copy.title = "Браузер не разрешил доступ к буферу обмена.";
+      }
+    });
+    const download = document.createElement("button");
+    download.type = "button"; download.className = "message-action"; download.textContent = "СОХРАНИТЬ ФАЙЛ";
+    download.addEventListener("click", () => downloadAssistantMessage(message.content));
+    actions.append(copy, download);
+  }
+  if (actions.childElementCount) content.append(actions);
   row.append(avatar, content); nodes.chat.append(row);
+  return row;
 }
+
 function renderAll() {
+  streamingRow = null; streamingBody = null; streamedTokenCount = 0;
   nodes.chat.replaceChildren();
   nodes.welcome.hidden = messages.length > 0;
-  for (const message of messages) renderMessage(message);
+  messages.forEach((message, index) => renderMessage(message, index));
+  nodes.chat.scrollTop = nodes.chat.scrollHeight;
+  renderChatList();
+}
+
+
+function renderChatList() {
+  if (!nodes.chatList) return;
+  nodes.chatList.replaceChildren();
+  if (nodes.memoryCount) nodes.memoryCount.textContent = String(loadMemory().length);
+  if (!chats.length) {
+    const empty = document.createElement("p");
+    empty.className = "chat-empty"; empty.textContent = "Сохранённых диалогов пока нет.";
+    nodes.chatList.append(empty); return;
+  }
+  for (const chat of chats) {
+    const row = document.createElement("div");
+    row.className = "chat-row" + (chat.id === activeChatId ? " active" : "");
+    row.setAttribute("role", "listitem");
+    const select = document.createElement("button");
+    select.type = "button"; select.className = "chat-select"; select.textContent = chat.title;
+    select.title = chat.title; select.setAttribute("aria-current", chat.id === activeChatId ? "true" : "false");
+    select.addEventListener("click", () => selectChat(chat.id));
+    const rename = document.createElement("button");
+    rename.type = "button"; rename.className = "chat-row-action"; rename.textContent = "✎";
+    rename.title = "Переименовать диалог"; rename.setAttribute("aria-label", "Переименовать: " + chat.title);
+    rename.addEventListener("click", () => renameChatUi(chat.id));
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.className = "chat-row-action delete"; remove.textContent = "×";
+    remove.title = "Удалить диалог"; remove.setAttribute("aria-label", "Удалить: " + chat.title);
+    remove.addEventListener("click", () => deleteChatUi(chat.id));
+    row.append(select, rename, remove); nodes.chatList.append(row);
+  }
+}
+
+function openChatSidebar(open = true) {
+  if (!nodes.sidebar || !nodes.sidebarBackdrop) return;
+  nodes.sidebar.hidden = !open;
+  nodes.sidebarBackdrop.hidden = !open;
+  nodes.toggleChats?.setAttribute("aria-expanded", String(open));
+  if (open) nodes.closeChats?.focus();
+}
+
+function selectChat(chatId) {
+  if (!chats.some((chat) => chat.id === chatId)) return;
+  ++requestCounter; pending = false;
+  const selected = chats.find((chat) => chat.id === chatId);
+  activeChatId = selected.id; messages = selected.messages;
+  setPending(false); renderAll(); updateComposer(); openChatSidebar(false);
+}
+
+function renameChatUi(chatId) {
+  const chat = chats.find((item) => item.id === chatId);
+  if (!chat) return;
+  const title = window.prompt("Новое название диалога:", chat.title);
+  if (title === null || !title.trim()) return;
+  applyChatState(renameChat(chats, chatId, title), activeChatId);
+}
+
+function deleteChatUi(chatId) {
+  const chat = chats.find((item) => item.id === chatId);
+  if (!chat) return;
+  if (!window.confirm("Удалить диалог «" + chat.title + "»? Это действие нельзя отменить.")) return;
+  ++requestCounter; pending = false;
+  let remaining = deleteChat(chats, chatId);
+  let nextActive = activeChatId;
+  if (chatId === activeChatId) {
+    nextActive = remaining[0]?.id || null;
+  }
+  if (!remaining.length) {
+    const empty = createChat();
+    remaining = [empty]; nextActive = empty.id;
+  }
+  applyChatState(remaining, nextActive);
+  setPending(false); renderAll(); updateComposer();
+}
+
+function downloadAssistantMessage(content) {
+  const raw = String(content ?? "");
+  const blocks = [...raw.matchAll(/```([a-zA-Z0-9_+#.-]*)s*?
+([sS]*?)```/gu)];
+  let data = raw;
+  let extension = "md";
+  let mime = "text/markdown;charset=utf-8";
+  if (blocks.length === 1) {
+    const language = (blocks[0][1] || "").toLowerCase();
+    const extensions = { javascript: "js", js: "js", typescript: "ts", ts: "ts", python: "py", py: "py", html: "html", css: "css", json: "json", yaml: "yml", yml: "yml", sql: "sql", bash: "sh", shell: "sh", powershell: "ps1", ps1: "ps1", csharp: "cs", c: "c", cpp: "cpp", java: "java", rust: "rs", go: "go", xml: "xml", markdown: "md", md: "md" };
+    extension = extensions[language] || "txt";
+    data = blocks[0][2];
+    mime = "text/plain;charset=utf-8";
+  }
+  const blob = new Blob([data], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = "lederg-neiro-" + new Date().toISOString().slice(0,10) + "." + extension;
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function appendGeneratedToken(token) {
+  const piece = String(token || "");
+  if (!piece) return;
+  if (!streamingBody) {
+    streamingRow = document.createElement("article"); streamingRow.className = "message assistant is-streaming";
+    const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = "ϟ";
+    const content = document.createElement("div"); content.className = "message-content";
+    const head = document.createElement("div"); head.className = "message-head";
+    const name = document.createElement("b"); name.textContent = "LEDERG NEIRO";
+    const time = document.createElement("time"); time.textContent = formatTime(); time.dateTime = new Date().toISOString();
+    head.append(name, time);
+    streamingBody = document.createElement("div"); streamingBody.className = "message-text";
+    streamingBody.setAttribute("aria-label", "Ответ LEDERG NEIRO в процессе генерации");
+    content.append(head, streamingBody); streamingRow.append(avatar, content); nodes.chat.append(streamingRow);
+  }
+  streamingBody.textContent += piece;
+  streamedTokenCount += 1;
+  if (nodes.status) {
+    nodes.status.textContent = "LIVE · " + streamedTokenCount;
+    nodes.status.classList.add("ready");
+  }
   nodes.chat.scrollTop = nodes.chat.scrollHeight;
 }
-function updateComposer() {
-  nodes.counter.textContent = nodes.input.value.length + " / 2000";
-  nodes.input.style.height = "auto";
-  nodes.input.style.height = Math.min(nodes.input.scrollHeight, 160) + "px";
-  nodes.send.disabled = pending || !nodes.input.value.trim();
+
+function confirmMemoryText(code, saved) {
+  const replies = {
+    en: saved ? "Saved to LEDERG NEIRO's local memory. Open Memory to review, edit, or delete it." : "Memory is full or that note is already saved. Open Memory to manage saved notes.",
+    ru: saved ? "Сохранила заметку в локальную память LEDERG NEIRO. Открой «Память», чтобы посмотреть, изменить или удалить её." : "Заметка уже сохранена или память заполнена. Открой «Память», чтобы управлять заметками.",
+    uk: saved ? "Зберегла нотатку в локальній пам’яті LEDERG NEIRO. Відкрий «Пам’ять», щоб переглянути, змінити або видалити її." : "Нотатку вже збережено або пам’ять заповнена. Відкрий «Пам’ять», щоб керувати нотатками.",
+    de: saved ? "In der lokalen LEDERG-NEIRO-Erinnerung gespeichert. Öffne „Gedächtnis“, um den Eintrag zu bearbeiten oder zu löschen." : "Der Eintrag ist bereits gespeichert oder der Speicher ist voll.",
+    es: saved ? "Guardado en la memoria local de LEDERG NEIRO. Abre «Memoria» para revisarlo, editarlo o eliminarlo." : "La nota ya existe o la memoria está llena.",
+    fr: saved ? "Enregistré dans la mémoire locale de LEDERG NEIRO. Ouvre « Mémoire » pour modifier ou supprimer cette note." : "Cette note existe déjà ou la mémoire est pleine."
+  };
+  return replies[code] || replies.en;
 }
+
+function openMemoryDialog() {
+  if (!nodes.memoryDialog || !nodes.memoryInput) return;
+  nodes.memoryInput.value = loadMemory().join("\n");
+  if (typeof nodes.memoryDialog.showModal === "function") nodes.memoryDialog.showModal();
+  else nodes.memoryDialog.setAttribute("open", "");
+  nodes.memoryInput.focus();
+}
+
+function closeMemoryDialog() {
+  if (!nodes.memoryDialog) return;
+  if (typeof nodes.memoryDialog.close === "function") nodes.memoryDialog.close();
+  else nodes.memoryDialog.removeAttribute("open");
+}
+
+
 function webSearchLinks(query) {
   const encoded = encodeURIComponent(query);
   return [
