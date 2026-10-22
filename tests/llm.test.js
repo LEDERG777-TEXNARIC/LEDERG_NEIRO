@@ -72,11 +72,15 @@ test("worker pins the matching ONNX Runtime WASM CDN build", async () => {
   assert.doesNotMatch(worker, /vendor\/onnxruntime/);
 });
 
-test("browser inference prefers WASM instead of an unverified WebGPU backend", async () => {
+test("inference tries WebGPU first when available and falls back to single-threaded WASM", async () => {
   const { readFile } = await import("node:fs/promises");
   const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");
-  assert.match(adapter, /const devices = \["wasm"\]/);
-  assert.doesNotMatch(adapter, /const devices = hasGpu/);
+  const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
+  assert.match(adapter, /const devices = hasGpu \? \["webgpu", "wasm"\]/);
+  assert.match(worker, /const devices = hasGpu \? \["webgpu", "wasm"\]/);
+  assert.match(adapter, /device === "webgpu" \? "q4f16" : "q4"/);
+  assert.match(worker, /device === "webgpu" \? "q4f16" : "q4"/);
+  assert.match(worker, /numThreads = 1/);
 });
 
 test("worker streams tokens and cache-busts updated worker code", async () => {
