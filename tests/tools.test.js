@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calculateExpression,convertUnit,getMoscowTime,detectToolRequest,searchWikipedia,getWikipediaExtract} from '../tools.js';
+import {calculateExpression,convertUnit,getMoscowTime,detectToolRequest,searchWikipedia,getWikipediaExtract,getWeather} from '../tools.js';
 test('calculator handles arithmetic and parentheses without eval',()=>{assert.equal(calculateExpression('(12 + 8) / 4 * 3'),15);assert.equal(calculateExpression('2^3 + 1'),9)});
 test('calculator rejects arbitrary code and division by zero',()=>{assert.throws(()=>calculateExpression('globalThis.process.exit()'));assert.throws(()=>calculateExpression('1 / 0'))});
 test('unit conversion supports distance and temperature',()=>{assert.equal(convertUnit(10,'км','мили').value,6.21371);assert.equal(convertUnit(10,'км','мили').unit,'миль');assert.equal(convertUnit(0,'c','f').value,32)});
@@ -44,4 +44,33 @@ test('article extract API provides readable context with a public CORS request',
   assert.equal(article.title, 'Neural network');
   assert.match(article.extract, /machine learning/);
   assert.match(article.url, /en\.wikipedia\.org\/wiki/);
+});
+
+
+test('weather geocoding uses the response language for place names', async () => {
+  const requests = [];
+  const fetchImpl = async (url) => {
+    requests.push(url);
+    if (url.hostname === 'geocoding-api.open-meteo.com') {
+      return {
+        ok: true,
+        json: async () => ({ results: [{ name: 'Berlin', country: 'Germany', latitude: 52.52, longitude: 13.405 }] })
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        timezone: 'Europe/Berlin',
+        current: {
+          temperature_2m: 18.5, relative_humidity_2m: 50,
+          apparent_temperature: 18.2, wind_speed_10m: 9,
+          weather_code: 0, time: '2026-10-22T18:00'
+        }
+      })
+    };
+  };
+  const result = await getWeather('Berlin', { language: 'de', fetchImpl });
+  assert.equal(requests[0].searchParams.get('language'), 'de');
+  assert.equal(result.city, 'Berlin, Germany');
+  assert.equal(result.temperature, 18.5);
 });
