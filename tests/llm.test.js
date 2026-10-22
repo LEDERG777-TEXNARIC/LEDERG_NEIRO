@@ -87,11 +87,11 @@ test("worker streams tokens and cache-busts updated worker code", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = await readFile(new URL("../llm-worker.js", import.meta.url), "utf8");
   const adapter = await readFile(new URL("../llm.js", import.meta.url), "utf8");
-  assert.match(worker, /const dtype = "q4"/);
-  assert.match(worker, /const devices = \["wasm"\]/);
-  assert.doesNotMatch(worker, /const devices = hasGpu/);
-  assert.doesNotMatch(worker, /q4f16/);
-  assert.match(adapter, /llm-worker\.js\?build=/);
+  assert.match(worker, /TextStreamerClass/);
+  assert.match(worker, /type: "token"/);
+  assert.match(worker, /const dtype = device === "webgpu" \? "q4f16" : "q4"/);
+  assert.match(worker, /const devices = hasGpu \? \["webgpu", "wasm"\]/);
+  assert.match(adapter, /llm-worker\.js\?build=20261022-live-stream/);
 });
 
 
