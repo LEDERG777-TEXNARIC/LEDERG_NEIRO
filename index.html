@@ -7,16 +7,25 @@
 <meta name="description" content="LEDERG NEIRO — экспериментальная браузерная нейросеть с базой знаний, поиском, московским временем и инструментами.">
 <title>LEDERG NEIRO — ИИ-чат</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css">
-<script type="module" src="app.js"></script>
+<link rel="stylesheet" href="styles.css?build=20261022-neiro-live">
+<script type="module" src="app.js?build=20261022-neiro-live"></script>
 </head>
 <body>
 <div class="app">
   <header class="topbar">
+    <button id="toggle-chats" class="icon-button" type="button" aria-label="Открыть список чатов" aria-expanded="false" title="История чатов">☷</button>
     <a class="brand" href="./" aria-label="LEDERG NEIRO — главная"><span class="bolt">ϟ</span><span><b>LEDERG <em>NEIRO</em></b><small>ТВОЙ ИНТЕЛЛЕКТ</small></span></a>
     <div class="top-status"><span id="model-status" class="model-status" title="Открытая языковая модель выполняется в этом браузере">QWEN 0.5B · LOCAL</span><span class="live"><i></i> BROWSER AI</span><time id="moscow-clock" title="Московское время" datetime="">МСК --:--</time></div>
     <button id="new-chat" class="new-chat" type="button" title="Начать новый диалог" aria-label="Начать новый диалог">＋</button>
   </header>
+  <aside id="chat-sidebar" class="chat-sidebar" aria-label="История чатов" hidden>
+    <div class="sidebar-heading"><span>ИСТОРИЯ ДИАЛОГОВ</span><button id="close-chats" class="icon-button close-sidebar" type="button" aria-label="Закрыть список чатов">×</button></div>
+    <button id="add-chat" class="sidebar-new-chat" type="button">＋ <span>Новый диалог</span></button>
+    <button id="memory-open" class="sidebar-memory" type="button"><span>◈</span><span><b>Память LEDERG NEIRO</b><small>Заметки между диалогами</small></span><span class="memory-count" id="memory-count">0</span></button>
+    <div id="chat-list" class="chat-list" role="list" aria-label="Сохранённые диалоги"></div>
+    <p class="sidebar-note">Чаты и память хранятся локально в этом браузере.</p>
+  </aside>
+  <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
   <main class="main">
     <section id="chat" class="chat" role="log" aria-live="polite" aria-relevant="additions text"></section>
     <section id="welcome" class="welcome">
@@ -41,6 +50,13 @@
     </form>
     <p class="footnote">История хранится в этом браузере. Запросы поиска и погоды передаются соответствующим публичным сервисам.</p>
   </footer>
+  <dialog id="memory-dialog" class="memory-dialog" aria-labelledby="memory-title">
+    <div class="memory-dialog-head"><div><p class="eyebrow">LEDERG NEIRO · LOCAL MEMORY</p><h2 id="memory-title">Память ассистента</h2></div><button id="memory-close" class="icon-button" type="button" aria-label="Закрыть память">×</button></div>
+    <p class="memory-description">Здесь хранятся факты и предпочтения, которые ты явно попросил запомнить. Память доступна только этому браузеру. Каждая строка — отдельная заметка; её можно отредактировать или удалить.</p>
+    <label for="memory-input" class="memory-label">СОХРАНЁННЫЕ ЗАМЕТКИ</label>
+    <textarea id="memory-input" rows="9" maxlength="12000" placeholder="Например: предпочитаю короткие ответы и чёрно-красный интерфейс."></textarea>
+    <div class="memory-dialog-actions"><button id="memory-clear" class="memory-clear" type="button">Очистить</button><button id="memory-save" class="memory-save" type="button">Сохранить память</button></div>
+  </dialog>
 </div>
 </body>
 </html>
