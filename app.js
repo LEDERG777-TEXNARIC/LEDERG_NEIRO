@@ -264,8 +264,9 @@ function deleteChatUi(chatId) {
 
 function downloadAssistantMessage(content) {
   const raw = String(content ?? "");
-  const blocks = [...raw.matchAll(/```([a-zA-Z0-9_+#.-]*)s*?
-([sS]*?)```/gu)];
+  const fence = String.fromCharCode(96).repeat(3);
+  const blockPattern = new RegExp(fence + "([a-zA-Z0-9_+#.-]*)\\s*\\r?\\n([\\s\\S]*?)" + fence, "gu");
+  const blocks = [...raw.matchAll(blockPattern)];
   let data = raw;
   let extension = "md";
   let mime = "text/markdown;charset=utf-8";
@@ -279,7 +280,8 @@ function downloadAssistantMessage(content) {
   const blob = new Blob([data], { type: mime });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url; link.download = "lederg-neiro-" + new Date().toISOString().slice(0,10) + "." + extension;
+  link.href = url;
+  link.download = "lederg-neiro-" + new Date().toISOString().slice(0, 10) + "." + extension;
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
