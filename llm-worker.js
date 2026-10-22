@@ -48,7 +48,6 @@ async function loadModel(id, requestedModelId = MODEL_ID) {
         lastError = error;
         if (device !== "webgpu") break;
         progress(id, "WebGPU не запустился. Перехожу на CPU/WASM без перезагрузки страницы…");
-        progress(id, "GPU-инициализация не удалась. Пробую совместимый CPU-режим…");
       }
     }
     throw lastError || new Error("Не удалось загрузить модель.");
