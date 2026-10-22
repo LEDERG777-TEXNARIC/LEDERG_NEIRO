@@ -488,7 +488,7 @@ async function runTool(tool, languageCode = "en") {
       } catch { return { content: t.conversionError, mode: "conversion" }; }
     case "weather":
       try {
-        const w = await getWeather(tool.query);
+        const w = await getWeather(tool.query, { language: languageCode });
         return {
           content: t.weather + ": " + w.city + "\n" + translatedCondition(w.condition, languageCode) + ".\n" +
             t.temperature + ": " + formatNumber(w.temperature) + " °C; " + t.feels + " " + formatNumber(w.feelsLike) + " °C.\n" +
@@ -623,7 +623,7 @@ async function getAnswer(query, { onToken = () => {} } = {}) {
   }
   if (tool?.type === "weather" && !TOOL_TEXT[language.code]) {
     try {
-      const weather = await getWeather(tool.query);
+      const weather = await getWeather(tool.query, { language: language.code });
       return generateModelAnswer(query, { webResult: { content: "Verified live weather-tool data. Use these values exactly: " + JSON.stringify(weather), sources: [{ title: "Open-Meteo", url: weather.source }] }, onToken });
     } catch {
       return generateModelAnswer(query, { webResult: { content: "The weather provider request failed. Be transparent that live weather data is unavailable." }, onToken });
