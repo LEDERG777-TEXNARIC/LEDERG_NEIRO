@@ -83,3 +83,6 @@
 }
 @media(max-width:390px){.topbar{gap:5px}.brand b{font-size:10px}.brand small{font-size:7px}.bolt{width:30px;height:30px;font-size:24px}#toggle-chats{font-size:18px}.new-chat{width:30px;height:30px;flex-basis:30px}}
 @media(prefers-reduced-motion:reduce){.chat-sidebar{animation:none}.message.is-streaming .message-text:after{animation:none}}
+
+.sidebar-repo{display:flex;align-items:center;gap:8px;min-height:37px;padding:0 10px;border:1px solid #34343a;border-radius:8px;background:#141416;color:#c4c4cb;font-size:10px;font-weight:800;text-decoration:none}
+.sidebar-repo:hover{border-color:#753a44;background:#211417;color:#ff929b}
